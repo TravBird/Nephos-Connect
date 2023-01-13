@@ -2,3 +2,6 @@
 out/
 forge.config.js
 node_modules/
+dist/
+icons/.DS_Store
+.DS_Store
