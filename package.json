@@ -1,31 +1,26 @@
 {
-  "name": "nephos-connect",
-  "version": "1.0.0",
-  "description": "Connects to Nephos server from Nephos Client",
-  "main": "main.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "electron-forge start",
-    "package": "electron-forge package",
-    "make": "electron-forge make"
-  },
-  "keywords": [
-    "client",
-    "Nephos",
-    "server",
-    "app"
-  ],
+  "name": "Nephos-Connect",
   "author": "Travis Bird",
-  "license": "ISC",
-  "devDependencies": {
-    "@electron-forge/cli": "^6.0.4",
-    "@electron-forge/maker-deb": "^6.0.4",
-    "@electron-forge/maker-rpm": "^6.0.4",
-    "@electron-forge/maker-squirrel": "^6.0.4",
-    "@electron-forge/maker-zip": "^6.0.4",
-    "electron": "^21.2.2"
+  "version": "0.1.0",
+  "main": "main.js",
+  "build": {
+    "appId": "nephos.conect",
+    "icon": "./icons/icon.png",
+    "mac": {
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   },
-  "dependencies": {
-    "electron-squirrel-startup": "^1.0.0"
-  }
+  "devDependencies": {
+    "electron": "^22.0.1",
+    "electron-builder": "^23.6.0"
+  },
+  "scripts": {
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "start": "APP_DEV=true electron ."
+  },
+  "postinstall": "electron-builder install-app-deps"
 }
