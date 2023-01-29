@@ -8,9 +8,10 @@ body {
   height: 100vh;
   background: linear-gradient(
     200.96deg,
-    #fedc2a -29.09%,
-    #dd5789 51.77%,
-    #7a2c9e 129.35%
+    #064559,
+    #3DCAF5,
+    #8ed0e4,
+
   );
   font-family: sans-serif;
   overflow-y: hidden;
@@ -33,6 +34,13 @@ button {
   opacity: 0.9;
 }
 
+.Register {
+  height: 1.5rem;
+  transition: height 10s linear;
+}
+.Register.active {
+  height: 7rem
+}
 button:hover {
   transform: scale(1.05);
   opacity: 1;

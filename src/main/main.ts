@@ -25,10 +25,31 @@ class AppUpdater {
 
 let mainWindow: BrowserWindow | null = null;
 
-ipcMain.on('ipc-example', async (event, arg) => {
-  const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
-  console.log(msgTemplate(arg));
-  event.reply('ipc-example', msgTemplate('pong'));
+// login and register functionallity
+// login
+ipcMain.handle(
+  'login',
+  async (event, username, password) => {
+    console.log('login attempt', username, password);
+    if (username === 'test' && password === 'test') {
+      console.log('login success!');
+      return { success: 'true' };
+    }
+    console.log('login failed!');
+    return { success: 'false' };
+  }
+  // hardcoded test for now
+);
+
+// register
+ipcMain.handle('register', async (event, username, password) => {
+  console.log('register attempt!', username, password);
+  // hardcoded reply for now
+  if (username === 'test' && password === 'test') {
+    console.log('register failed!');
+    return { success: 'true' };
+  }
+  return { success: 'false' };
 });
 
 if (process.env.NODE_ENV === 'production') {
@@ -56,6 +77,7 @@ const installExtensions = async () => {
     .catch(console.log);
 };
 
+// create the browser window
 const createWindow = async () => {
   if (isDebug) {
     await installExtensions();
@@ -69,6 +91,7 @@ const createWindow = async () => {
     return path.join(RESOURCES_PATH, ...paths);
   };
 
+  // adjust the window size
   mainWindow = new BrowserWindow({
     show: false,
     width: 1024,
