@@ -34,9 +34,40 @@ button {
   opacity: 0.9;
 }
 
-.Register {
+#root{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: left;
+  height: 100%;
+  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+.LoginRegisterContainer{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+.Form {
   height: 1.5rem;
   transition: height 10s linear;
+}
+.LoginTitle{
+  font-size: 2rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
 }
 .Register.active {
   height: 7rem
@@ -60,11 +91,4 @@ a {
 a:hover {
   opacity: 1;
   text-decoration: none;
-}
-
-.Hello {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin: 20px 0;
 }

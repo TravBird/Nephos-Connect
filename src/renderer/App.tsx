@@ -5,7 +5,7 @@ import {
   useNavigate,
   Navigate,
 } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Transition } from 'react-transition-group';
 import { act } from 'react-test-renderer';
 import icon from '../../assets/icon.svg';
@@ -25,19 +25,20 @@ const transitionStyles = {
 
 function LoginRegisterChoice() {
   const [activeState, setActiveState] = useState('Home');
-  const [authenticated, setauthenticated] = useState(
-    localStorage.getItem(localStorage.getItem('authenticated') || 'false')
-  );
+  const authenticated = localStorage.getItem('authenticated');
+  const navigate = useNavigate();
+
   const Authenticated = () => {
-    if (authenticated) {
-      return <Navigate to="/home" />;
+    if (authenticated === 'true') {
+      return navigate('/home');
     }
-    return <Navigate to="/" />;
   };
+  useEffect(() => {
+    Authenticated();
+  });
   return (
     <>
       <div className="LoginRegisterContainer">
-        <h1>Welcome to Nephos!</h1>
         <Home
           isActive={activeState === 'Home'}
           onLoginChoice={() => setActiveState('Login')}
@@ -98,7 +99,7 @@ function Login({ isActive, onBack }) {
         >
           <div>
             {isActive ? (
-              <div className="Login">
+              <div className="FormContainer">
                 <h1>Login</h1>
                 <input
                   name="username"
@@ -159,56 +160,67 @@ function Register({ isActive, onBack }) {
   );
   const navigate = useNavigate();
   return (
-    <div>
-      {isActive ? (
-        <div className="Register">
-          <h1>Register</h1>
-          <input
-            name="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Username"
-          />
-          <input
-            name="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              window.electron.ipcRenderer
-                .register('register', username, password)
-                .then((result) => {
-                  if (result.success === 'true') {
-                    localStorage.setItem('authenticated', 'true');
-                    setauthenticated('true');
-                    navigate('/home');
-                  }
-                  setRegisterFailed(true);
-                });
-            }}
-          >
-            Register
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setRegisterFailed(false);
-              onBack({ activeState: 'Home' });
-            }}
-          >
-            Back
-          </button>
-          <div className="detail_fail">
-            {registerFailed ? (
-              <h1>Registration Failed, please try again</h1>
+    <Transition in={isActive} timeout={1000}>
+      {(state) => (
+        <div
+          style={{
+            ...defaultStyle,
+            ...transitionStyles[state],
+          }}
+        >
+          <div>
+            {isActive ? (
+              <div className="FormContainer">
+                <h1>Register</h1>
+                <input
+                  name="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Username"
+                />
+                <input
+                  name="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.electron.ipcRenderer
+                      .register('register', username, password)
+                      .then((result) => {
+                        if (result.success === 'true') {
+                          localStorage.setItem('authenticated', 'true');
+                          setauthenticated('true');
+                          navigate('/home');
+                        }
+                        setRegisterFailed(true);
+                      });
+                  }}
+                >
+                  Register
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegisterFailed(false);
+                    onBack({ activeState: 'Home' });
+                  }}
+                >
+                  Back
+                </button>
+                <div className="detail_fail">
+                  {registerFailed ? (
+                    <h1>Registration Failed, please try again</h1>
+                  ) : null}
+                </div>
+              </div>
             ) : null}
           </div>
         </div>
-      ) : null}
-    </div>
+      )}
+    </Transition>
   );
 }
 
