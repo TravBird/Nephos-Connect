@@ -224,6 +224,52 @@ function Register({ isActive, onBack }) {
   );
 }
 
+const ConfigInfo = (config) => {
+  const [open, setOpen] = useState(false);
+
+  if (open === false) {
+    return (
+      <li>
+      <div id={config.config.displayName} className="ConfigInfo">
+          {config.config.displayName}
+          <button
+            onClick={() => {
+              setOpen(true);
+            }}
+          >
+          + More Info
+          </button>
+    </div>
+    </li>
+    );
+  }
+  return (
+    <li>
+    <div id={config.config.displayName} className="ConfigInfo">
+        {config.config.displayName}
+        <button
+          onClick={() => {
+            setOpen(false);
+          }}
+        >
+        - Less Info
+        </button>
+  </div>
+  <div className='AdditionalInfo'>
+    <p>Compartment: {config.config.compartmentId}</p>
+    <p>Availability Domain: {config.config.availabilityDomain}</p>
+    <p>Shape: {config.config.shape}</p>
+    <p>Image: {config.config.image}</p>
+    <p>Subnet: {config.config.subnetId}</p>
+    <p>SSH Public Key: {config.config.sshPublicKey}</p>
+    <p>SSH Private Key: {config.config.sshPrivateKey}</p>
+    <p>SSH Private Key Passphrase: {config.config.sshPrivateKeyPassphrase}</p>
+    <p>SSH User: {config.config.sshUser}</p>
+  </div>
+  </li>
+  );
+};
+
 function MainMenu() {
   const [authenticated, setauthenticated] = useState(
     localStorage.getItem(localStorage.getItem('authenticated') || 'false')
@@ -234,18 +280,34 @@ function MainMenu() {
     setauthenticated('false');
     navigate('/');
   };
+  const [shapes, setShapes] = useState([]);
+  const [configs, setConfigs] = useState([]);
+
+  useEffect(() => {
+    window.electron.ipcRendererOCI
+      .ociConnectTest('oci-connect-test', 'test')
+      .then((result) => setShapes(result.items))
+      .catch((err) => console.log(err));
+  }, []);
+
+  useEffect(() => {
+    window.electron.ipcRendererOCI
+      .listInstanceConfigs('instance-configs', 'test')
+      .then((result) => setConfigs(result.items))
+      .catch((err) => console.log(err));
+  }, []);
+
   return (
     <div>
-      <h1>Home</h1>
       <div id="OS Selection">
         <h1>Select your operating system below</h1>
         <ul>
-          <li>Windows</li>
-          <li>Linux Debian</li>
-          <li>Linux Ubuntu</li>
+          {configs.map((config) => (
+            <ConfigInfo config={config} />
+          ))}
         </ul>
       </div>
-      <button type="button" onClick={() => logout()}>
+      <button type="button" id="LogoutButton" onClick={() => logout()}>
         Logout
       </button>
     </div>

@@ -14,6 +14,7 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
+import { getShape, getInstanceConfiguration } from './oci_connect';
 
 class AppUpdater {
   constructor() {
@@ -50,6 +51,22 @@ ipcMain.handle('register', async (event, username, password) => {
     return { success: 'true' };
   }
   return { success: 'false' };
+});
+
+// OCI Request listeners
+ipcMain.handle('oci-connect-test', (event, arg) => {
+  console.log('oci-connect-test received');
+  const shapes = getShape('Server');
+  console.log('Shapes received from OCI: ', shapes);
+  return shapes;
+});
+
+// get OCI Shapes
+ipcMain.handle('instance-configs', (event, arg) => {
+  console.log('instance-configs received');
+  const configs = getInstanceConfiguration();
+  console.log('Configs received from OCI: ', configs);
+  return configs;
 });
 
 if (process.env.NODE_ENV === 'production') {

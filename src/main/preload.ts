@@ -6,8 +6,16 @@ const electronHandler = {
       return ipcRenderer.invoke(channel, username, password);
     },
 
-    async register(channel: 'Register', username: string, password: string) {
+    async register(channel: 'register', username: string, password: string) {
       return ipcRenderer.invoke(channel, username, password);
+    },
+  },
+  ipcRendererOCI: {
+    async ociConnectTest(channel: 'oci-connect-test', request: any) {
+      return ipcRenderer.invoke(channel, request);
+    },
+    async listInstanceConfigs(channel: 'instance-configs', request: any) {
+      return ipcRenderer.invoke(channel, request);
     },
   },
 };
