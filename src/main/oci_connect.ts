@@ -80,3 +80,40 @@ export async function getInstanceConfiguration(): Promise<core.models.InstanceCo
 
   return response;
 }
+
+async function getInstanceConfig(selectedConfig) {
+  try {
+    // Create a request and dependent object(s).
+    const getInstanceConfigurationRequest: core.requests.GetInstanceConfigurationRequest =
+      {
+        instanceConfigurationId: selectedConfig,
+      };
+
+    // Send request to the Client.
+    const getInstanceConfigurationResponse =
+      await clientManagement.getInstanceConfiguration(
+        getInstanceConfigurationRequest
+      );
+    return getInstanceConfigurationResponse;
+  } catch (error) {
+    console.log(`getInstanceConfiguration Failed with error  ${error}`);
+  }
+}
+
+export async function launchInstanceFromConfig(
+  details
+): Promise<core.models.Instance> {
+  // log the details
+  console.log(details);
+  const instanceDetails = await getInstanceConfig(details.config.id);
+
+  console.log(instanceDetails);
+  const request: core.requests.LaunchInstanceConfigurationRequest = {
+    instanceConfigurationId: details.config.id,
+    instanceConfiguration: instanceDetails,
+  };
+
+  const response = await clientManagement.launchInstanceConfiguration(request);
+
+  return response;
+}

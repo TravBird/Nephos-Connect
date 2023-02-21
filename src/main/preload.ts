@@ -17,6 +17,9 @@ const electronHandler = {
     async listInstanceConfigs(channel: 'instance-configs', request: any) {
       return ipcRenderer.invoke(channel, request);
     },
+    async startVM(channel: 'start-vm', request: any) {
+      return ipcRenderer.invoke(channel, request);
+    },
   },
 };
 

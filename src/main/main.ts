@@ -14,7 +14,7 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
-import { getShape, getInstanceConfiguration } from './oci_connect';
+import { getShape, getInstanceConfiguration, launchInstanceFromConfig } from './oci_connect';
 
 class AppUpdater {
   constructor() {
@@ -67,6 +67,14 @@ ipcMain.handle('instance-configs', (event, arg) => {
   const configs = getInstanceConfiguration();
   console.log('Configs received from OCI: ', configs);
   return configs;
+});
+
+// start OCI VM
+// In testing, subject to change
+ipcMain.handle('start-vm', (event, arg) => {
+  console.log('start-vm received');
+  const info = launchInstanceFromConfig(arg);
+  return info;
 });
 
 if (process.env.NODE_ENV === 'production') {

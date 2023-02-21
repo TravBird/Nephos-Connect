@@ -39,29 +39,31 @@ button {
 }
 
 #root{
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: left;
   height: 100%;
   width: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1;
 }
 
 .LoginRegisterContainer{
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   height: 100%;
   width: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1;
+  text-align: center;
+}
+
+.LoginRegister{
+  display: flex;
+  justify-content: center;
+}
+.LoginButton{
+  background-color: white;
+  border: 2px solid black;
+  border-radius: 5px;
+  padding: 10px;
+  margin: 10px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all ease-in 0.1s;
+  opacity: 0.9;
 }
 
 .Form {
@@ -108,12 +110,25 @@ a:hover {
   margin-bottom: 10px;
   border: 2px solid black;
   padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  flex-direction: column
 }
 
 .ConfigInfo > Button {
   background-color: white;
   border: 2px solid black;
-  float: right;
   justify-content: center;
   align-items: center;
+}
+
+.InitialInfo{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+}
+
+.AdditionalInfo{
+  width: 100%;
 }
