@@ -1,8 +1,10 @@
 // OCI SDK
-import common = require('oci-common');
+import * as common from 'oci-common';
 import * as core from 'oci-core';
 import * as identity from 'oci-identity';
 import * as wr from 'oci-workrequests';
+
+import log from 'electron-log';
 
 // Config File may need to be specified in future, especially when running on NephOS Natively
 const provider: common.ConfigFileAuthenticationDetailsProvider =
@@ -26,6 +28,37 @@ const identityClient = new identity.IdentityClient({
   authenticationDetailsProvider: provider,
 });
 
+// Identity Calls
+
+// Create new User in IAM: https://docs.oracle.com/en-us/iaas/api/#/en/identity/20160918/User/CreateUser
+// may need to move this to IDCS instead
+export async function createUser(user_name, email, description): Promise<identity.models.User> {
+  const request: identity.requests.CreateUserRequest = {
+    createUserDetails: {
+      compartmentId: tenancyId,
+      name: user_name,
+      description: description,
+      email: email,
+    }
+  }
+
+  const response = await identityClient.createUser(request);
+
+  const userId = response.user.id
+
+  const pass = resetPassword(userId)
+  return response.user;
+};
+
+export async function resetPassword(userId): Promise<identity.models.UIPassword> {
+  const request: identity.requests.CreateOrResetUIPasswordRequest = {
+    userId: userId,
+    // opcRetryToken: "EXAMPLE-opcRetryToken-Value"
+  }
+  const response = await identityClient.createOrResetUIPassword(request);
+  return response.uIPassword;
+}
+
 async function getAvailabilityDomain(): Promise<identity.models.AvailabilityDomain> {
   const request: identity.requests.ListAvailabilityDomainsRequest = {
     compartmentId: tenancyId,
@@ -36,6 +69,10 @@ async function getAvailabilityDomain(): Promise<identity.models.AvailabilityDoma
 }
 
 const availabilityDomain = getAvailabilityDomain();
+
+
+
+// Instance Calls
 
 // function to get availible shapes
 export async function getShape(
@@ -77,6 +114,9 @@ export async function getInstanceConfiguration(): Promise<core.models.InstanceCo
   //    return shape;
   //  }
   // }
+
+  console.log("Response from get instance configuration ", response);
+  log.info("Response from get instance configuration ", response);
 
   return response;
 }

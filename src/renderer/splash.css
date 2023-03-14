@@ -1,0 +1,34 @@
+.loader {
+  border: 16px solid #8ed0e4;
+  border-top: 16px solid #064559; /* Blue */
+  border-radius: 50%;
+  width: 100px;
+  height: 100px;
+  animation: spin 1.5s infinite ease-in-out;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+  0% { border-top: 16px solid #064559;}
+  50% { border-top: 16px solid #3DCAF5;}
+  100% { border-top: 16px solid #064559;}
+}
+
+body {
+  position: relative;
+  color: white;
+  height: 100vh;
+  background-image: linear-gradient(
+    200.96deg,
+    #064559,
+    #3DCAF5,
+    #8ed0e4
+  );
+  font-family: sans-serif;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}

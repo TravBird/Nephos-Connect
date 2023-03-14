@@ -14,7 +14,12 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
-import { getShape, getInstanceConfiguration, launchInstanceFromConfig } from './oci_connect';
+import {
+  getShape,
+  getInstanceConfiguration,
+  launchInstanceFromConfig,
+  createUser,
+} from './oci_connect';
 
 class AppUpdater {
   constructor() {
@@ -24,6 +29,7 @@ class AppUpdater {
   }
 }
 
+let splash: BrowserWindow | null = null;
 let mainWindow: BrowserWindow | null = null;
 
 // login and register functionallity
@@ -32,11 +38,14 @@ ipcMain.handle(
   'login',
   async (event, username, password) => {
     console.log('login attempt', username, password);
+    log.info('login attempt', username, password);
     if (username === 'test' && password === 'test') {
       console.log('login success!');
+      log.info('login success!');
       return { success: 'true' };
     }
     console.log('login failed!');
+    log.info('login failed!');
     return { success: 'false' };
   }
   // hardcoded test for now
@@ -53,6 +62,27 @@ ipcMain.handle('register', async (event, username, password) => {
   return { success: 'false' };
 });
 
+// OCI Auth listeners
+ipcMain.handle('oci-login', async (event, username, password) => {
+  console.log('login attempt', username, password);
+  log.info('login attempt', username, password);
+  const login = await idcsLogin(); // or something
+  if (login == xyz) {
+    console.log('login success!');
+    log.info('login success!');
+    return { success: 'true' };
+  }
+  console.log('login failed!');
+  log.info('login failed!');
+  return { success: 'false' };
+});
+
+ipcMain.handle('oci-register', (event, username, email) => {
+  console.log('oci-register received');
+  const register = createUser(username, email, 'test');
+  return register;
+});
+
 // OCI Request listeners
 ipcMain.handle('oci-connect-test', (event, arg) => {
   console.log('oci-connect-test received');
@@ -63,9 +93,11 @@ ipcMain.handle('oci-connect-test', (event, arg) => {
 
 // get OCI Shapes
 ipcMain.handle('instance-configs', (event, arg) => {
-  console.log('instance-configs received');
+  console.log('instance-configs request received');
+  log.info('instance-configs request received');
   const configs = getInstanceConfiguration();
   console.log('Configs received from OCI: ', configs);
+  log.info('Configs received from OCI: ', configs);
   return configs;
 });
 
@@ -73,6 +105,7 @@ ipcMain.handle('instance-configs', (event, arg) => {
 // In testing, subject to change
 ipcMain.handle('start-vm', (event, arg) => {
   console.log('start-vm received');
+  log.info('start-vm received');
   const info = launchInstanceFromConfig(arg);
   return info;
 });
@@ -116,12 +149,21 @@ const createWindow = async () => {
     return path.join(RESOURCES_PATH, ...paths);
   };
 
+  splash = new BrowserWindow({
+    fullscreen: true,
+    frame: false,
+    // alwaysOnTop: true,
+    // backgroundColor: '#3DCAF5',
+  });
+  splash.loadFile('./src/renderer/splash.html');
+
   // adjust the window size
   mainWindow = new BrowserWindow({
+    frame: false,
+    fullscreen: true,
     show: false,
-    width: 1024,
-    height: 728,
     icon: getAssetPath('icon.png'),
+    backgroundColor: '#3DCAF5',
     webPreferences: {
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
@@ -139,6 +181,7 @@ const createWindow = async () => {
       mainWindow.minimize();
     } else {
       mainWindow.show();
+      splash?.destroy();
     }
   });
 
@@ -163,7 +206,6 @@ const createWindow = async () => {
 /**
  * Add event listeners...
  */
-
 app.on('window-all-closed', () => {
   // Respect the OSX convention of having the application in memory even
   // after all windows have been closed

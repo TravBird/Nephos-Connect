@@ -84,7 +84,7 @@ export function Login({ isActive, onBack }) {
                 <button
                   type="button"
                   onClick={() => {
-                    window.electron.ipcRenderer
+                    window.electron.ipcRendererOCIauth
                       .login('login', username, password)
                       .then((result) => {
                         if (result.success === 'true') {
@@ -155,8 +155,8 @@ export function Register({ isActive, onBack }) {
                 <button
                   type="button"
                   onClick={() => {
-                    window.electron.ipcRenderer
-                      .register('register', username, password)
+                    window.electron.ipcRendererOCIauth
+                      .register('oci-register', username, password)
                       .then((result) => {
                         if (result.success === 'true') {
                           localStorage.setItem('authenticated', 'true');

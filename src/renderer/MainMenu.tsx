@@ -59,7 +59,7 @@ export default function MainMenu() {
 
     if (open === false) {
       return (
-        <li className="ConfigInfo">
+        <li className="ConfigInfo" key={config.config.displayName}>
           <div className="InitialInfo">
             <div id={config.config.displayName}>
               <input
@@ -112,7 +112,7 @@ export default function MainMenu() {
         <h1>Select your operating system below</h1>
         <ul>
           {configs.map((config) => (
-            <ConfigInfo config={config} selected={selected} />
+            <ConfigInfo config={config} selected={selected} key={config.displayName}/>
           ))}
         </ul>
       </div>

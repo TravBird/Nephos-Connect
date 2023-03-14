@@ -1,12 +1,12 @@
 {
-  "name": "electron-react-boilerplate",
-  "version": "4.6.0",
-  "description": "A foundation for scalable desktop apps",
+  "name": "nephos-connect",
+  "version": "0.4.0",
+  "description": "Nephos Connect App, based on Electron React Boilerplate",
   "license": "MIT",
   "author": {
-    "name": "Electron React Boilerplate Maintainers",
-    "email": "electronreactboilerplate@gmail.com",
-    "url": "https://github.com/electron-react-boilerplate"
+    "name": "Travis Bird",
+    "email": "tbird0055@gmail.com",
+    "url": "https://github.com/TravBird/Nephos-Connect"
   },
   "main": "./dist/main/main.js",
   "scripts": {
@@ -14,5 +14,21 @@
     "postinstall": "npm run rebuild && npm run link-modules",
     "link-modules": "node -r ts-node/register ../../.erb/scripts/link-modules.ts"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@electron/asar": "^3.2.3",
+    "asar": "^3.2.0",
+    "electron-debug": "^3.2.0",
+    "electron-log": "^4.4.8",
+    "electron-shutdown-command": "^2.0.1",
+    "electron-updater": "^5.2.3",
+    "oci-common": "^2.54.0",
+    "oci-core": "2.54.0",
+    "oci-identity": "^2.54.0",
+    "oci-sdk": "^2.54.0",
+    "oci-workrequests": "2.54.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.4.0",
+    "react-transition-group": "^4.4.5"
+  }
 }
