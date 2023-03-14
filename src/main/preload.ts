@@ -1,15 +1,19 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
 const electronHandler = {
-  ipcRenderer: {
-    async login(channel: 'login', username: string, password: string) {
+  ipcRendererOCIauth: {
+    async login(channel: 'oci-login', username: string, password: string) {
       return ipcRenderer.invoke(channel, username, password);
     },
-
-    async register(channel: 'register', username: string, password: string) {
+    async register(
+      channel: 'oci-register',
+      username: string,
+      password: string
+    ) {
       return ipcRenderer.invoke(channel, username, password);
     },
   },
+
   ipcRendererOCI: {
     async ociConnectTest(channel: 'oci-connect-test', request: any) {
       return ipcRenderer.invoke(channel, request);
