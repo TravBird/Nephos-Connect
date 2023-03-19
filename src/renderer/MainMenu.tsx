@@ -30,13 +30,6 @@ export default function MainMenu() {
 
   useEffect(() => {
     window.electron.ipcRendererOCI
-      .ociConnectTest('oci-connect-test', 'test')
-      .then((result) => setShapes(result.items))
-      .catch((err) => console.log(err));
-  }, []);
-
-  useEffect(() => {
-    window.electron.ipcRendererOCI
       .listInstanceConfigs('instance-configs', 'test')
       .then((result) => setConfigs(result.items))
       .catch((err) => console.log(err));

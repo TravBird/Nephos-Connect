@@ -15,9 +15,6 @@ const electronHandler = {
   },
 
   ipcRendererOCI: {
-    async ociConnectTest(channel: 'oci-connect-test', request: any) {
-      return ipcRenderer.invoke(channel, request);
-    },
     async listInstanceConfigs(channel: 'instance-configs', request: any) {
       return ipcRenderer.invoke(channel, request);
     },
