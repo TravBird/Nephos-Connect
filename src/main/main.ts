@@ -135,10 +135,10 @@ const createWindow = async () => {
   splash = new BrowserWindow({
     fullscreen: true,
     frame: false,
-    // alwaysOnTop: true,
-    // backgroundColor: '#3DCAF5',
+    alwaysOnTop: true,
+    backgroundColor: '#3DCAF5',
   });
-  splash.loadFile('./src/renderer/splash.html');
+  splash.loadFile(path.join(__dirname, '../renderer/splash.html'));
 
   // adjust the window size
   mainWindow = new BrowserWindow({
