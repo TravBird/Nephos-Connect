@@ -84,12 +84,6 @@ ipcMain.handle('oci-register', async (event, username, email) => {
 });
 
 // OCI Request listeners
-ipcMain.handle('oci-connect-test', async (event, arg) => {
-  console.log('oci-connect-test received');
-  const shapes = getShape('Server');
-  console.log('Shapes received from OCI: ', shapes);
-  return shapes;
-});
 
 // get OCI Shapes
 ipcMain.handle('instance-configs', async (event, arg) => {
