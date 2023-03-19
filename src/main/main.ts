@@ -88,10 +88,8 @@ ipcMain.handle('oci-register', async (event, username, email) => {
 // get OCI Shapes
 ipcMain.handle('instance-configs', async (event, arg) => {
   console.log('instance-configs request received');
-  log.info('instance-configs request received');
   const configs = await getInstanceConfiguration();
   console.log('Configs received from OCI: ', configs);
-  log.info('Configs received from OCI: ', configs);
   return configs;
 });
 

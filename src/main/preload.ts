@@ -3,23 +3,27 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 const electronHandler = {
   ipcRendererOCIauth: {
     async login(channel: 'oci-login', username: string, password: string) {
-      return ipcRenderer.invoke(channel, username, password);
+      const result = await ipcRenderer.invoke(channel, username, password);
+      return result;
     },
     async register(
       channel: 'oci-register',
       username: string,
       password: string
     ) {
-      return ipcRenderer.invoke(channel, username, password);
+      const result = await ipcRenderer.invoke(channel, username, password);
+      return result;
     },
   },
 
   ipcRendererOCI: {
     async listInstanceConfigs(channel: 'instance-configs', request: any) {
-      return ipcRenderer.invoke(channel, request);
+      const result = await ipcRenderer.invoke(channel, request);
+      return result;
     },
     async startVM(channel: 'start-vm', request: any) {
-      return ipcRenderer.invoke(channel, request);
+      const result = await ipcRenderer.invoke(channel, request);
+      return result;
     },
   },
 };
