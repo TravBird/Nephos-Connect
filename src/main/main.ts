@@ -77,14 +77,14 @@ ipcMain.handle('oci-login', async (event, username, password) => {
   return { success: 'false' };
 });
 
-ipcMain.handle('oci-register', (event, username, email) => {
+ipcMain.handle('oci-register', async (event, username, email) => {
   console.log('oci-register received');
   const register = createUser(username, email, 'test');
   return register;
 });
 
 // OCI Request listeners
-ipcMain.handle('oci-connect-test', (event, arg) => {
+ipcMain.handle('oci-connect-test', async (event, arg) => {
   console.log('oci-connect-test received');
   const shapes = getShape('Server');
   console.log('Shapes received from OCI: ', shapes);
@@ -92,10 +92,10 @@ ipcMain.handle('oci-connect-test', (event, arg) => {
 });
 
 // get OCI Shapes
-ipcMain.handle('instance-configs', (event, arg) => {
+ipcMain.handle('instance-configs', async (event, arg) => {
   console.log('instance-configs request received');
   log.info('instance-configs request received');
-  const configs = getInstanceConfiguration();
+  const configs = await getInstanceConfiguration();
   console.log('Configs received from OCI: ', configs);
   log.info('Configs received from OCI: ', configs);
   return configs;
@@ -103,7 +103,7 @@ ipcMain.handle('instance-configs', (event, arg) => {
 
 // start OCI VM
 // In testing, subject to change
-ipcMain.handle('start-vm', (event, arg) => {
+ipcMain.handle('start-vm', async (event, arg) => {
   console.log('start-vm received');
   log.info('start-vm received');
   const info = launchInstanceFromConfig(arg);
