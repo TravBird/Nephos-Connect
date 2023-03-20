@@ -32,45 +32,57 @@ const identityClient = new identity.IdentityClient({
 
 // Create new User in IAM: https://docs.oracle.com/en-us/iaas/api/#/en/identity/20160918/User/CreateUser
 // may need to move this to IDCS instead
-export async function createUser(user_name, email, description): Promise<identity.models.User> {
+export async function createUser(
+  user_name,
+  email,
+  description
+): Promise<identity.models.User> {
   const request: identity.requests.CreateUserRequest = {
     createUserDetails: {
       compartmentId: tenancyId,
       name: user_name,
-      description: description,
-      email: email,
-    }
-  }
+      description,
+      email,
+    },
+  };
 
   const response = await identityClient.createUser(request);
 
-  const userId = response.user.id
+  const userId = response.user.id;
 
-  const pass = resetPassword(userId)
+  const pass = resetPassword(userId);
   return response.user;
-};
+}
 
-export async function resetPassword(userId): Promise<identity.models.UIPassword> {
-  const request: identity.requests.CreateOrResetUIPasswordRequest = {
-    userId: userId,
-    // opcRetryToken: "EXAMPLE-opcRetryToken-Value"
+export async function resetPassword(
+  userId
+): Promise<identity.models.UIPassword> {
+  try {
+    const request: identity.requests.CreateOrResetUIPasswordRequest = {
+      userId,
+      // opcRetryToken: "EXAMPLE-opcRetryToken-Value"
+    };
+    const response = await identityClient.createOrResetUIPassword(request);
+    return response.uIPassword;
+  } catch (e) {
+    console.log('Error in reset password ', e);
   }
-  const response = await identityClient.createOrResetUIPassword(request);
-  return response.uIPassword;
 }
 
 async function getAvailabilityDomain(): Promise<identity.models.AvailabilityDomain> {
-  const request: identity.requests.ListAvailabilityDomainsRequest = {
-    compartmentId: tenancyId,
-  };
+  try {
+    const request: identity.requests.ListAvailabilityDomainsRequest = {
+      compartmentId: tenancyId,
+    };
 
-  const response = await identityClient.listAvailabilityDomains(request);
-  return response.items[0];
+    const response = await identityClient.listAvailabilityDomains(request);
+    return response.items[0];
+  } catch (e) {
+    console.log('Error in getAvailabilityDomain ', e);
+  }
 }
 
 const availabilityDomain = getAvailabilityDomain();
-
-
 
 // Instance Calls
 
@@ -78,47 +90,55 @@ const availabilityDomain = getAvailabilityDomain();
 export async function getShape(
   availabilityDomain = availabilityDomain
 ): Promise<core.models.Shape> {
-  const request: core.requests.ListShapesRequest = {
-    availabilityDomain: availabilityDomain.name,
-    compartmentId:
-      'ocid1.compartment.oc1..aaaaaaaamowsqxoe4apfqwhqdxp6s4b4222s5eqqpt3a4fegjorekzkw3wta',
-  };
+  try {
+    const request: core.requests.ListShapesRequest = {
+      availabilityDomain: availabilityDomain.name,
+      compartmentId:
+        'ocid1.compartment.oc1..aaaaaaaamowsqxoe4apfqwhqdxp6s4b4222s5eqqpt3a4fegjorekzkw3wta',
+    };
 
-  const response = await computeClient.listShapes(request);
+    const response = await computeClient.listShapes(request);
 
-  // for (const shape of response.items) {
-  // if (
-  //    shape.shape.startsWith('VM') &&
-  //    shape.shape.toLowerCase().indexOf('flex') == -1
-  //  ) {
-  //    return shape;
-  //  }
-  // }
+    // for (const shape of response.items) {
+    // if (
+    //    shape.shape.startsWith('VM') &&
+    //    shape.shape.toLowerCase().indexOf('flex') == -1
+    //  ) {
+    //    return shape;
+    //  }
+    // }
 
-  return response;
+    return response;
+  } catch (e) {
+    console.log('Error in getShape ', e);
+  }
 }
 
 export async function getInstanceConfiguration(): Promise<core.models.InstanceConfigurationSummary> {
-  const request: core.requests.ListInstanceConfigurationsRequest = {
-    compartmentId:
-      'ocid1.compartment.oc1..aaaaaaaamowsqxoe4apfqwhqdxp6s4b4222s5eqqpt3a4fegjorekzkw3wta',
-  };
+  try {
+    const request: core.requests.ListInstanceConfigurationsRequest = {
+      compartmentId:
+        'ocid1.compartment.oc1..aaaaaaaamowsqxoe4apfqwhqdxp6s4b4222s5eqqpt3a4fegjorekzkw3wta',
+    };
 
-  const response = await clientManagement.listInstanceConfigurations(request);
+    const response = await clientManagement.listInstanceConfigurations(request);
 
-  // for (const shape of response.items) {
-  // if (
-  //    shape.shape.startsWith('VM') &&
-  //    shape.shape.toLowerCase().indexOf('flex') == -1
-  //  ) {
-  //    return shape;
-  //  }
-  // }
+    // for (const shape of response.items) {
+    // if (
+    //    shape.shape.startsWith('VM') &&
+    //    shape.shape.toLowerCase().indexOf('flex') == -1
+    //  ) {
+    //    return shape;
+    //  }
+    // }
 
-  console.log("Response from get instance configuration ", response);
-  log.info("Response from get instance configuration ", response);
+    console.log('Response from get instance configuration ', response);
+    log.info('Response from get instance configuration ', response);
 
-  return response;
+    return response;
+  } catch (e) {
+    console.log('Error in getInstanceConfiguration ', e);
+  }
 }
 
 async function getInstanceConfig(selectedConfig) {
@@ -143,17 +163,23 @@ async function getInstanceConfig(selectedConfig) {
 export async function launchInstanceFromConfig(
   details
 ): Promise<core.models.Instance> {
-  // log the details
-  console.log(details);
-  const instanceDetails = await getInstanceConfig(details.config.id);
+  try {
+    // log the details
+    console.log(details);
+    const instanceDetails = await getInstanceConfig(details.config.id);
 
-  console.log(instanceDetails);
-  const request: core.requests.LaunchInstanceConfigurationRequest = {
-    instanceConfigurationId: details.config.id,
-    instanceConfiguration: instanceDetails,
-  };
+    console.log(instanceDetails);
+    const request: core.requests.LaunchInstanceConfigurationRequest = {
+      instanceConfigurationId: details.config.id,
+      instanceConfiguration: instanceDetails,
+    };
 
-  const response = await clientManagement.launchInstanceConfiguration(request);
+    const response = await clientManagement.launchInstanceConfiguration(
+      request
+    );
 
-  return response;
+    return response;
+  } catch (e) {
+    console.log('Error in launchInstanceFromConfig ', e);
+  }
 }
