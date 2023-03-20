@@ -136,8 +136,10 @@ export async function getInstanceConfiguration(): Promise<core.models.InstanceCo
     log.info('Response from get instance configuration ', response);
 
     return response;
+
   } catch (e) {
     console.log('Error in getInstanceConfiguration ', e);
+    throw e;
   }
 }
 
