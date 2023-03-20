@@ -13,11 +13,7 @@ import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
-import {
-  getInstanceConfiguration,
-  launchInstanceFromConfig,
-  createUser,
-} from './oci_connect';
+import * as ociConnect from './oci_connect.ts';
 
 let splash: BrowserWindow | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -56,7 +52,7 @@ ipcMain.handle('register', async (event, username, password) => {
 ipcMain.handle('oci-login', async (event, username, password) => {
   console.log('login attempt', username, password);
   log.info('login attempt', username, password);
-  const login = await idcsLogin(); // or something
+  const login = await ociConnect.idcsLogin(); // or something
   if (login == xyz) {
     console.log('login success!');
     log.info('login success!');
@@ -69,7 +65,7 @@ ipcMain.handle('oci-login', async (event, username, password) => {
 
 ipcMain.handle('oci-register', async (event, username, email) => {
   console.log('oci-register received');
-  const register = createUser(username, email, 'test');
+  const register = ociConnect.createUser(username, email, 'test');
   return register;
 });
 
@@ -78,7 +74,7 @@ ipcMain.handle('oci-register', async (event, username, email) => {
 // get OCI Shapes
 ipcMain.handle('instance-configs', async (event, arg) => {
   console.log('instance-configs request received');
-  const configs = await getInstanceConfiguration();
+  const configs = await ociConnect.listInstanceConfigurations();
   console.log('Configs received from OCI: ', configs);
   return configs;
 });
@@ -88,7 +84,7 @@ ipcMain.handle('instance-configs', async (event, arg) => {
 ipcMain.handle('start-vm', async (event, arg) => {
   console.log('start-vm received');
   log.info('start-vm received');
-  const info = launchInstanceFromConfig(arg);
+  const info = ociConnect.launchInstanceFromConfig(arg);
   return info;
 });
 

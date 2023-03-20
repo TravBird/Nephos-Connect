@@ -114,29 +114,27 @@ export async function getShape(
   }
 }
 
-export async function getInstanceConfiguration(): Promise<core.models.InstanceConfigurationSummary> {
+// getting list of all instance configs
+export async function listInstanceConfigurations(): Promise<
+  core.models.InstanceConfigurationSummary[]
+> {
   try {
+    // creating request object
     const request: core.requests.ListInstanceConfigurationsRequest = {
       compartmentId:
         'ocid1.compartment.oc1..aaaaaaaamowsqxoe4apfqwhqdxp6s4b4222s5eqqpt3a4fegjorekzkw3wta',
     };
 
+    // sending request to client
     const response = await clientManagement.listInstanceConfigurations(request);
 
-    // for (const shape of response.items) {
-    // if (
-    //    shape.shape.startsWith('VM') &&
-    //    shape.shape.toLowerCase().indexOf('flex') == -1
-    //  ) {
-    //    return shape;
-    //  }
-    // }
+    console.log(
+      'Response recieved from get instance configuration: ',
+      response,
+      '. Response Ended.'
+    );
 
-    console.log('Response from get instance configuration ', response);
-    log.info('Response from get instance configuration ', response);
-
-    return response;
-
+    return response.items;
   } catch (e) {
     console.log('Error in getInstanceConfiguration ', e);
     throw e;

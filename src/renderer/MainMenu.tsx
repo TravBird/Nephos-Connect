@@ -31,7 +31,7 @@ export default function MainMenu() {
   useEffect(() => {
     window.electron.ipcRendererOCI
       .listInstanceConfigs('instance-configs', 'test')
-      .then((result) => setConfigs(result.items))
+      .then((result) => setConfigs(result))
       .catch((err) => console.log(err));
   }, []);
 
@@ -47,7 +47,7 @@ export default function MainMenu() {
     });
   }
 
-  const ConfigInfo = (config) => {
+  function ConfigInfo(config) {
     const [open, setOpen] = useState(false);
 
     if (open === false) {
@@ -97,7 +97,7 @@ export default function MainMenu() {
         </div>
       </li>
     );
-  };
+  }
 
   function OSSelection() {
     return (
@@ -105,7 +105,11 @@ export default function MainMenu() {
         <h1>Select your operating system below</h1>
         <ul>
           {configs.map((config) => (
-            <ConfigInfo config={config} selected={selected} key={config.displayName}/>
+            <ConfigInfo
+              config={config}
+              selected={selected}
+              key={config.displayName}
+            />
           ))}
         </ul>
       </div>
