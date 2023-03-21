@@ -15,5 +15,10 @@
     "link-modules": "node -r ts-node/register ../../.erb/scripts/link-modules.ts"
   },
   "dependencies": {
+    "oci-common": "^2.54.0",
+    "oci-core": "2.54.0",
+    "oci-identity": "^2.54.0",
+    "oci-sdk": "^2.54.0",
+    "oci-workrequests": "2.54.0"
   }
 }
