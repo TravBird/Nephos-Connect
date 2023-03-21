@@ -10,6 +10,12 @@ import log from 'electron-log';
 const provider: common.ConfigFileAuthenticationDetailsProvider =
   new common.ConfigFileAuthenticationDetailsProvider();
 
+console.log('provider ', provider);
+console.log('provider.getTenantId() ', provider.getTenantId());
+console.log('provider.getFingerprint() ', provider.getFingerprint());
+console.log('provider.getRegion() ', provider.getRegion());
+console.log('provider.getUser() ', provider.getUser());
+
 // Loading config Values
 const tenancyId = provider.getTenantId();
 const fingerprint = provider.getFingerprint();
