@@ -99,15 +99,6 @@ export async function getShape(
 
     const response = await computeClient.listShapes(request);
 
-    // for (const shape of response.items) {
-    // if (
-    //    shape.shape.startsWith('VM') &&
-    //    shape.shape.toLowerCase().indexOf('flex') == -1
-    //  ) {
-    //    return shape;
-    //  }
-    // }
-
     return response.items;
   } catch (e) {
     console.log('Error in getShape ', e);
