@@ -133,11 +133,8 @@ const createWindow = async () => {
     alwaysOnTop: true,
     backgroundColor: '#3DCAF5',
   });
-
   splash.loadFile(
-    app.isPackaged
-      ? path.join(__dirname, 'splash.html')
-      : path.join(__dirname, '../renderer/splash.html')
+    `file://${path.resolve(__dirname, '../renderer/', 'splash.html')}`
   );
 
   // adjust the window size
