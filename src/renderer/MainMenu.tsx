@@ -1,9 +1,6 @@
 import {
   MemoryRouter as Router,
-  Routes,
-  Route,
   useNavigate,
-  Navigate,
 } from 'react-router-dom';
 import { useEffect, useState, Component } from 'react';
 import { Transition } from 'react-transition-group';

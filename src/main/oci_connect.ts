@@ -89,7 +89,7 @@ const availabilityDomain = getAvailabilityDomain();
 // function to get availible shapes
 export async function getShape(
   availabilityDomain = availabilityDomain
-): Promise<core.models.Shape> {
+): Promise<core.models.Shape[]> {
   try {
     const request: core.requests.ListShapesRequest = {
       availabilityDomain: availabilityDomain.name,
@@ -108,7 +108,7 @@ export async function getShape(
     //  }
     // }
 
-    return response;
+    return response.items;
   } catch (e) {
     console.log('Error in getShape ', e);
   }

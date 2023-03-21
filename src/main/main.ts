@@ -53,7 +53,7 @@ ipcMain.handle('oci-login', async (event, username, password) => {
   console.log('login attempt', username, password);
   log.info('login attempt', username, password);
   const login = await ociConnect.idcsLogin(); // or something
-  if (login == xyz) {
+  if (login === xyz) {
     console.log('login success!');
     log.info('login success!');
     return { success: 'true' };
@@ -175,7 +175,6 @@ const createWindow = async () => {
     shell.openExternal(edata.url);
     return { action: 'deny' };
   });
-
 };
 
 /**
