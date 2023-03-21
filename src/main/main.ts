@@ -133,7 +133,7 @@ const createWindow = async () => {
     alwaysOnTop: true,
     backgroundColor: '#3DCAF5',
   });
-  splash.loadFile(resolveHtmlPath('splash.html'));
+  splash.loadURL(resolveHtmlPath('splash.html'));
 
   // adjust the window size
   mainWindow = new BrowserWindow({
