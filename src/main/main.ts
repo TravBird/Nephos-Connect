@@ -65,7 +65,7 @@ ipcMain.handle('oci-login', async (event, username, password) => {
 
 ipcMain.handle('oci-register', async (event, username, email) => {
   console.log('oci-register received');
-  const register = ociConnect.createUser(username, email, 'test');
+  const register = await ociConnect.createUser(username, email, 'test');
   return register;
 });
 
@@ -74,9 +74,17 @@ ipcMain.handle('oci-register', async (event, username, email) => {
 // get OCI Shapes
 ipcMain.handle('instance-configs', async (event, arg) => {
   console.log('instance-configs request received');
-  const configs = await ociConnect.listInstanceConfigurations();
-  console.log('Configs received from OCI: ', configs);
-  return configs;
+  try {
+    const configs = await ociConnect.listInstanceConfigurations();
+    console.log('Configs received from OCI: ', configs);
+    return configs;
+  } catch (err) {
+    console.log(
+      'Exception in instance-configs icpMain handler in main.ts file: ',
+      err
+    );
+    return err;
+  }
 });
 
 // start OCI VM
@@ -133,7 +141,7 @@ const createWindow = async () => {
     alwaysOnTop: true,
     backgroundColor: '#3DCAF5',
   });
-  splash.loadFile(
+  splash.loadURL(
     `file://${path.resolve(__dirname, '../renderer/', 'splash.html')}`
   );
 
