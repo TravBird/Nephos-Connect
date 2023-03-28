@@ -10,12 +10,6 @@ import log from 'electron-log';
 const provider: common.ConfigFileAuthenticationDetailsProvider =
   new common.ConfigFileAuthenticationDetailsProvider();
 
-console.log('provider ', provider);
-console.log('provider.getTenantId() ', provider.getTenantId());
-console.log('provider.getFingerprint() ', provider.getFingerprint());
-console.log('provider.getRegion() ', provider.getRegion());
-console.log('provider.getUser() ', provider.getUser());
-
 // Loading config Values
 const tenancyId = provider.getTenantId();
 const fingerprint = provider.getFingerprint();
@@ -38,6 +32,29 @@ const identityClient = new identity.IdentityClient({
 
 // Create new User in IAM: https://docs.oracle.com/en-us/iaas/api/#/en/identity/20160918/User/CreateUser
 // may need to move this to IDCS instead
+
+// login a user
+export async function idcsLogin(): Promise<identity.models.User> {
+  const request: identity.requests.CreateUserRequest = {
+    createUserDetails: {
+      compartmentId: tenancyId,
+      name: 'test',
+      description: 'test',
+      email: 'test',
+    },
+  };
+
+  const response = await identityClient.createUser(request);
+
+  const userId = response.user.id;
+
+  const pass = resetPassword(userId);
+
+  return response.user;
+
+}
+
+
 export async function createUser(
   user_name,
   email,

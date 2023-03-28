@@ -14,6 +14,7 @@ import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import * as ociConnect from './oci_connect.ts';
+import * as idcsAuth from './idcs_auth.ts';
 
 let splash: BrowserWindow | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -52,8 +53,9 @@ ipcMain.handle('register', async (event, username, password) => {
 ipcMain.handle('oci-login', async (event, username, password) => {
   console.log('login attempt', username, password);
   log.info('login attempt', username, password);
-  const login = await ociConnect.idcsLogin(); // or something
-  if (login === xyz) {
+  const login = idcsAuth.idcsLogin(); // or something
+  console.log(login);
+  if (login === true) {
     console.log('login success!');
     log.info('login success!');
     return { success: 'true' };
