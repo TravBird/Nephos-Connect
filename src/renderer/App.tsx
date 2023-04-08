@@ -14,7 +14,6 @@ import './App.css';
 import { Home, Login, Register } from './Login';
 import MainMenu from './MainMenu';
 
-
 function LoginRegisterChoice() {
   const [activeState, setActiveState] = useState('Home');
   const authenticated = localStorage.getItem('authenticated');
@@ -28,8 +27,22 @@ function LoginRegisterChoice() {
   useEffect(() => {
     Authenticated();
   });
+
+  function handlePowerOff() {
+    window.electron.ipcRendererShutdown.shutdown('shutdown');
+  }
+
   return (
     <>
+      <button
+        type="button"
+        onClick={() => {
+          handlePowerOff();
+        }}
+      >
+        Power Off
+      </button>
+
       <div className="LoginRegisterContainer">
         <h1>Welcome to Nephos!</h1>
         <Home

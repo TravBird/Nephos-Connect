@@ -16,8 +16,16 @@ import { resolveHtmlPath } from './util';
 import * as ociConnect from './oci_connect.ts';
 import * as idcsAuth from './idcs_auth.ts';
 
+const shutdown = require('electron-shutdown-command');
+
 let splash: BrowserWindow | null = null;
 let mainWindow: BrowserWindow | null = null;
+
+// handle shutdown request from renderer
+ipcMain.handle('shutdown', (event, arg) => {
+  console.log('shutdown request received');
+  shutdown.shutdown();
+});
 
 // login and register functionallity
 // login
