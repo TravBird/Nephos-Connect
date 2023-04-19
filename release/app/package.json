@@ -1,6 +1,6 @@
 {
   "name": "nephos-connect",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Nephos Connect App, based on Electron React Boilerplate",
   "license": "MIT",
   "author": {
@@ -15,6 +15,7 @@
     "link-modules": "node -r ts-node/register ../../.erb/scripts/link-modules.ts"
   },
   "dependencies": {
+    "keytar": "^7.9.0",
     "oci-common": "^2.54.0",
     "oci-core": "2.54.0",
     "oci-identity": "^2.54.0",

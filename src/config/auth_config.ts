@@ -2,7 +2,7 @@ module.exports = {
   idcs: {
     classOpts: {
       ClientTenant: process.env.IDCS_CLIENT_TENANT,
-      ClientId: process.env.IDCS_CLIENT_ID,
+      ClientId: 'f83387194eb14b238d024b3b1f82388b',
       // ClientSecret: process.env.IDCS_CLIENT_SECRET,
       IDCSHost: `https://${process.env.IDCS_CLIENT_TENANT}.identity.oraclecloud.com`,
       AudienceServiceUrl: `https://${process.env.IDCS_CLIENT_TENANT}.identity.oraclecloud.com`,

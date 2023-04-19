@@ -9,17 +9,30 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  shell,
+  ipcMain,
+  BrowserView,
+  webContents,
+} from 'electron';
 import log from 'electron-log';
+import jwt_decode from 'jwt-decode';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
+import IDCSAuth from './idcs_auth';
 import * as ociConnect from './oci_connect.ts';
-import * as idcsAuth from './idcs_auth.ts';
+
+const { URL } = require('url');
 
 const shutdown = require('electron-shutdown-command');
 
-let splash: BrowserWindow | null = null;
+const splash: BrowserWindow | null = null;
 let mainWindow: BrowserWindow | null = null;
+let authWindow: BrowserView | null = null;
+
+let idcsAuth: IDCSAuth | null = null;
 
 // handle shutdown request from renderer
 ipcMain.handle('shutdown', (event, arg) => {
@@ -27,8 +40,64 @@ ipcMain.handle('shutdown', (event, arg) => {
   shutdown.shutdown();
 });
 
+async function windowChange(authWindow: BrowserView) {
+  return new Promise((resolve) => {
+    // awaiting for url change
+    authWindow.webContents.on('will-navigate', async (event, url) => {
+      console.log('URL: ', url);
+      // getting auth token if url contains callback
+      if (url.includes('http://localhost:3000/callback')) {
+        // parsing url to get auth token
+        const parsedUrl = new URL(url);
+        const token = parsedUrl.searchParams.get('code');
+        if (token !== null && token !== undefined) {
+          console.log('User Login Succeeded');
+          // setting auth token
+          idcsAuth?.setAuthToken(token);
+          // closing auth window
+          mainWindow?.setBrowserView(null);
+          authWindow.webContents.destroy();
+
+          // making access token request
+          try {
+            const tokens = await idcsAuth?.accessTokenRequest();
+            const idToken = tokens?.id_token;
+            const accessToken = tokens?.access_token;
+            idcsAuth?.setAccessToken(accessToken);
+            resolve({ success: 'true', idToken });
+          } catch (error) {
+            console.log(error);
+            resolve({ success: 'false' });
+          }
+        }
+      }
+    });
+  });
+}
 // login and register functionallity
 // login
+ipcMain.handle('oci-login-sso-create', async (event) => {
+  idcsAuth = new IDCSAuth();
+  authWindow = new BrowserView();
+  authWindow.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+  mainWindow?.setBrowserView(authWindow);
+  const bounds = mainWindow.getBounds();
+  // authWindow.webContents.executeJavaScript("document.getElementById(...)")
+
+  // login
+  await authWindow.webContents.loadURL(idcsAuth.getAuthURL());
+  authWindow.setBounds({
+    x: 0,
+    y: 0,
+    width: bounds.width,
+    height: bounds.height,
+  });
+  console.log('Waiting for URL to change...');
+  const result = await windowChange(authWindow);
+  console.log('result: ', result);
+  return result;
+});
+
 ipcMain.handle(
   'login',
   async (event, username, password) => {
@@ -145,6 +214,7 @@ const createWindow = async () => {
     return path.join(RESOURCES_PATH, ...paths);
   };
 
+  /*
   splash = new BrowserWindow({
     fullscreen: true,
     frame: false,
@@ -154,11 +224,12 @@ const createWindow = async () => {
   splash.loadURL(
     `file://${path.resolve(__dirname, '../renderer/', 'splash.html')}`
   );
+    */
 
   // adjust the window size
   mainWindow = new BrowserWindow({
-    frame: false,
-    fullscreen: true,
+    frame: true,
+    fullscreen: false,
     show: false,
     icon: getAssetPath('icon.png'),
     backgroundColor: '#3DCAF5',

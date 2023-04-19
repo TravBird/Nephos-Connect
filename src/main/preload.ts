@@ -8,6 +8,14 @@ const electronHandler = {
     },
   },
   ipcRendererOCIauth: {
+    async login_sso_create(channel: 'oci-login-sso-create') {
+      const result = await ipcRenderer.invoke(channel);
+      return result;
+    },
+    async login_sso(channel: 'oci-login-sso') {
+      const result = await ipcRenderer.invoke(channel);
+      return result;
+    },
     async login(channel: 'oci-login', username: string, password: string) {
       const result = await ipcRenderer.invoke(channel, username, password);
       return result;

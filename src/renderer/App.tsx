@@ -1,17 +1,14 @@
+/* eslint-disable react/jsx-filename-extension */
 import {
   MemoryRouter as Router,
   Routes,
   Route,
   useNavigate,
-  Navigate,
 } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Transition } from 'react-transition-group';
-import { act } from 'react-test-renderer';
-import icon from '../../assets/icon.svg';
 import './App.css';
 
-import { Home, Login, Register } from './Login';
+import { Home, Register, Loading } from './Login';
 import MainMenu from './MainMenu';
 
 function LoginRegisterChoice() {
@@ -47,17 +44,15 @@ function LoginRegisterChoice() {
         <h1>Welcome to Nephos!</h1>
         <Home
           isActive={activeState === 'Home'}
-          onLoginChoice={() => setActiveState('Login')}
+          // onLoginChoice={() => setActiveState('Login')}
           onRegisterChoice={() => setActiveState('Register')}
-        />
-        <Login
-          isActive={activeState === 'Login'}
-          onBack={() => setActiveState('Home')}
+          onLoadingChoice={() => setActiveState('Loading')}
         />
         <Register
           isActive={activeState === 'Register'}
           onBack={() => setActiveState('Home')}
         />
+        <Loading isActive={activeState === 'Loading'} />
       </div>
     </>
   );
