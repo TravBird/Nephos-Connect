@@ -16,7 +16,7 @@ const transitionStyles = {
   exited: { opacity: 0 },
 };
 
-export function Home({ isActive, onLoadingChoice, onRegisterChoice }) {
+export function Home({ isActive }) {
   const navigate = useNavigate();
   const [authenticated, setauthenticated] = useState(
     localStorage.getItem(localStorage.getItem('authenticated') || 'false')
@@ -30,7 +30,7 @@ export function Home({ isActive, onLoadingChoice, onRegisterChoice }) {
             type="button"
             onClick={() => {
               window.electron.ipcRendererOCIauth
-                .login_sso_create('oci-login-sso-create')
+                .login_sso('oci-login-sso')
                 .then((result) => {
                   if (result.success === 'true') {
                     // localStorage.setItem('authenticated', 'true');
@@ -49,86 +49,26 @@ export function Home({ isActive, onLoadingChoice, onRegisterChoice }) {
           <button
             className="LoginButton"
             type="button"
-            onClick={() => onRegisterChoice({ activeState: 'Register' })}
+            onClick={() => {
+              window.electron.ipcRendererOCIauth
+                .register_sso('oci-register-sso')
+                .then((result) => {
+                  if (result.success === 'true') {
+                    // localStorage.setItem('authenticated', 'true');
+                    setauthenticated('true');
+                    navigate('/');
+                  }
+                })
+                .catch((err) => {
+                  console.log(err);
+                });
+            }}
           >
             Register
           </button>
         </div>
       ) : null}
     </div>
-  );
-}
-
-export function Register({ isActive, onBack }) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [registerFailed, setRegisterFailed] = useState(false);
-  const [authenticated, setauthenticated] = useState(
-    localStorage.getItem(localStorage.getItem('authenticated') || 'false')
-  );
-  const navigate = useNavigate();
-  return (
-    <Transition in={isActive} timeout={1000}>
-      {(state) => (
-        <div
-          style={{
-            ...defaultStyle,
-            ...transitionStyles[state],
-          }}
-        >
-          <div>
-            {isActive ? (
-              <div className="FormContainer">
-                <h1>Register</h1>
-                <input
-                  name="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Username"
-                />
-                <input
-                  name="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    window.electron.ipcRendererOCIauth
-                      .register('oci-register', username, password)
-                      .then((result) => {
-                        if (result.success === 'true') {
-                          localStorage.setItem('authenticated', result);
-                          setauthenticated('true');
-                          navigate('/home');
-                        }
-                        setRegisterFailed(true);
-                      });
-                  }}
-                >
-                  Register
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRegisterFailed(false);
-                    onBack({ activeState: 'Home' });
-                  }}
-                >
-                  Back
-                </button>
-                <div className="detail_fail">
-                  {registerFailed ? (
-                    <h1>Registration Failed, please try again</h1>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
-    </Transition>
   );
 }
 

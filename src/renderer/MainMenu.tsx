@@ -130,7 +130,7 @@ function LogoutButton(setAuthenticated: any) {
       id="LogoutButton"
       onClick={() => {
         localStorage.removeItem('authenticated');
-        setAuthenticated('false');
+        // setAuthenticated('false');
         navigate('/');
       }}
     >

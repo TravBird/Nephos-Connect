@@ -45,12 +45,8 @@ function LoginRegisterChoice() {
         <Home
           isActive={activeState === 'Home'}
           // onLoginChoice={() => setActiveState('Login')}
-          onRegisterChoice={() => setActiveState('Register')}
+          // onRegisterChoice={() => setActiveState('Register')}
           onLoadingChoice={() => setActiveState('Loading')}
-        />
-        <Register
-          isActive={activeState === 'Register'}
-          onBack={() => setActiveState('Home')}
         />
         <Loading isActive={activeState === 'Loading'} />
       </div>
