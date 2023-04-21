@@ -3,197 +3,214 @@ import * as common from 'oci-common';
 import * as core from 'oci-core';
 import * as identity from 'oci-identity';
 import * as wr from 'oci-workrequests';
+import * as fs from 'fs';
+import os from 'os';
 
-import log from 'electron-log';
+const filePath = `${os.homedir()}/.oci/config`;
+const keyPath = `${os.homedir()}/.oci/keys/`;
 
-// Config File may need to be specified in future, especially when running on NephOS Natively
-const provider: common.ConfigFileAuthenticationDetailsProvider =
-  new common.ConfigFileAuthenticationDetailsProvider();
+export class OCIConnect {
+  computeClient: core.ComputeClient;
 
-// Loading config Values
-const tenancyId = provider.getTenantId();
-const fingerprint = provider.getFingerprint();
-const region = provider.getRegion();
+  clientManagement: core.ComputeManagementClient;
 
-// Create a new ComputeClient
-const computeClient = new core.ComputeClient({
-  authenticationDetailsProvider: provider,
-});
+  identityClient: identity.IdentityClient;
 
-const clientManagement = new core.ComputeManagementClient({
-  authenticationDetailsProvider: provider,
-});
+  profileName: string;
 
-const identityClient = new identity.IdentityClient({
-  authenticationDetailsProvider: provider,
-});
+  filePath: string;
 
-// Identity Calls
+  constructor(profileName: string) {
+    this.profileName = profileName;
+    this.filePath = filePath;
 
-// Create new User in IAM: https://docs.oracle.com/en-us/iaas/api/#/en/identity/20160918/User/CreateUser
-// may need to move this to IDCS instead
-
-// login a user
-export async function idcsLogin(): Promise<identity.models.User> {
-  const request: identity.requests.CreateUserRequest = {
-    createUserDetails: {
-      compartmentId: tenancyId,
-      name: 'test',
-      description: 'test',
-      email: 'test',
-    },
-  };
-
-  const response = await identityClient.createUser(request);
-
-  const userId = response.user.id;
-
-  const pass = resetPassword(userId);
-
-  return response.user;
-
-}
-
-
-export async function createUser(
-  user_name,
-  email,
-  description
-): Promise<identity.models.User> {
-  const request: identity.requests.CreateUserRequest = {
-    createUserDetails: {
-      compartmentId: tenancyId,
-      name: user_name,
-      description,
-      email,
-    },
-  };
-
-  const response = await identityClient.createUser(request);
-
-  const userId = response.user.id;
-
-  const pass = resetPassword(userId);
-  return response.user;
-}
-
-export async function resetPassword(
-  userId
-): Promise<identity.models.UIPassword> {
-  try {
-    const request: identity.requests.CreateOrResetUIPasswordRequest = {
-      userId,
-      // opcRetryToken: "EXAMPLE-opcRetryToken-Value"
-    };
-    const response = await identityClient.createOrResetUIPassword(request);
-    return response.uIPassword;
-  } catch (e) {
-    console.log('Error in reset password ', e);
-  }
-}
-
-async function getAvailabilityDomain(): Promise<identity.models.AvailabilityDomain> {
-  try {
-    const request: identity.requests.ListAvailabilityDomainsRequest = {
-      compartmentId: tenancyId,
-    };
-
-    const response = await identityClient.listAvailabilityDomains(request);
-    return response.items[0];
-  } catch (e) {
-    console.log('Error in getAvailabilityDomain ', e);
-  }
-}
-
-const availabilityDomain = getAvailabilityDomain();
-
-// Instance Calls
-
-// function to get availible shapes
-export async function getShape(
-  availabilityDomain = availabilityDomain
-): Promise<core.models.Shape[]> {
-  try {
-    const request: core.requests.ListShapesRequest = {
-      availabilityDomain: availabilityDomain.name,
-      compartmentId:
-        'ocid1.compartment.oc1..aaaaaaaamowsqxoe4apfqwhqdxp6s4b4222s5eqqpt3a4fegjorekzkw3wta',
-    };
-
-    const response = await computeClient.listShapes(request);
-
-    return response.items;
-  } catch (e) {
-    console.log('Error in getShape ', e);
-  }
-}
-
-// getting list of all instance configs
-export async function listInstanceConfigurations(): Promise<
-  core.models.InstanceConfigurationSummary[]
-> {
-  try {
-    // creating request object
-    const request: core.requests.ListInstanceConfigurationsRequest = {
-      compartmentId:
-        'ocid1.compartment.oc1..aaaaaaaamowsqxoe4apfqwhqdxp6s4b4222s5eqqpt3a4fegjorekzkw3wta',
-    };
-
-    // sending request to client
-    const response = await clientManagement.listInstanceConfigurations(request);
-
-    console.log(
-      'Response recieved from get instance configuration: ',
-      response,
-      '. Response Ended.'
+    const provider = new common.ConfigFileAuthenticationDetailsProvider(
+      this.filePath,
+      this.profileName
     );
 
-    return response.items;
+    console.log('user: ', provider.getUser());
+    console.log('fingerprint: ', provider.getFingerprint());
+    console.log('privateKey: ', provider.getPrivateKey());
+
+    // Create a new ComputeClient
+    this.computeClient = new core.ComputeClient({
+      authenticationDetailsProvider: provider,
+    });
+
+    this.clientManagement = new core.ComputeManagementClient({
+      authenticationDetailsProvider: provider,
+    });
+
+    this.identityClient = new identity.IdentityClient({
+      authenticationDetailsProvider: provider,
+    });
+  }
+
+  // function to get availible shapes
+  async getShape(availabilityDomain): Promise<core.models.Shape[]> {
+    try {
+      const request: core.requests.ListShapesRequest = {
+        availabilityDomain: availabilityDomain.name,
+        compartmentId:
+          'ocid1.compartment.oc1..aaaaaaaamowsqxoe4apfqwhqdxp6s4b4222s5eqqpt3a4fegjorekzkw3wta',
+      };
+
+      const response = await this.computeClient.listShapes(request);
+
+      return response.items;
+    } catch (e) {
+      console.log('Error in getShape ', e);
+      throw e;
+    }
+  }
+
+  // getting list of all instance configs
+  async listInstanceConfigurations(): Promise<
+    core.models.InstanceConfigurationSummary[]
+  > {
+    try {
+      // creating request object
+      const request: core.requests.ListInstanceConfigurationsRequest = {
+        compartmentId:
+          'ocid1.compartment.oc1..aaaaaaaamowsqxoe4apfqwhqdxp6s4b4222s5eqqpt3a4fegjorekzkw3wta',
+      };
+
+      // sending request to client
+      const response = await this.clientManagement.listInstanceConfigurations(
+        request
+      );
+
+      console.log(
+        'Response recieved from get instance configuration: ',
+        response,
+        '. Response Ended.'
+      );
+
+      return response.items;
+    } catch (e) {
+      console.log('Error in getInstanceConfiguration ', e);
+      throw e;
+    }
+  }
+
+  async getInstanceConfig(selectedConfig) {
+    try {
+      // Create a request and dependent object(s).
+      const getInstanceConfigurationRequest: core.requests.GetInstanceConfigurationRequest =
+        {
+          instanceConfigurationId: selectedConfig,
+        };
+
+      // Send request to the Client.
+      const getInstanceConfigurationResponse =
+        await this.clientManagement.getInstanceConfiguration(
+          getInstanceConfigurationRequest
+        );
+      return getInstanceConfigurationResponse;
+    } catch (error) {
+      console.log(`getInstanceConfiguration Failed with error  ${error}`);
+      throw error;
+    }
+  }
+
+  async launchInstanceFromConfig(details): Promise<core.models.Instance> {
+    try {
+      // log the details
+      console.log(details);
+      const instanceDetails = await this.getInstanceConfig(details.config.id);
+
+      console.log(instanceDetails);
+      const request: core.requests.LaunchInstanceConfigurationRequest = {
+        instanceConfigurationId: details.config.id,
+        instanceConfiguration: instanceDetails,
+      };
+
+      const response = await this.clientManagement.launchInstanceConfiguration(
+        request
+      );
+
+      return response;
+    } catch (error) {
+      console.log('Error in launchInstanceFromConfig ', error);
+      throw error;
+    }
+  }
+
+  async addApiKeyToUser(key: string, user: string) {
+    try {
+      const apiKey: identity.models.CreateApiKeyDetails = {
+        key,
+      };
+      const request: identity.requests.UploadApiKeyRequest = {
+        createApiKeyDetails: apiKey,
+        userId: user,
+      };
+      const response = await this.identityClient.uploadApiKey(request);
+
+      return response;
+    } catch (error) {
+      console.log('Error in addApiKeyToUser ', error);
+      throw error;
+    }
+  }
+
+  async getUserOCID(user: string) {
+    try {
+      const request: identity.requests.ListUsersRequest = {
+        compartmentId: 'ocid1.tenancy.oc1..aaaaaaaax25zqrammapt7upslefqq3kv6dzilt6z55yobnf2cmrn3tcimgpa',
+        identityProviderId:
+          'ocid1.saml2idp.oc1..aaaaaaaace5zv3qqzb6ycrvbvmto4uhjyfmsrqkveiq4pa5rvh7jcjg7fpzq',
+      };
+      const response = await this.identityClient.listUsers(request);
+      for (let i = 0; i < response.items.length; i++) {
+        if (response.items[i].description === user) {
+          return response.items[i].id;
+        }
+      }
+      throw new Error('User not found');
+    } catch (error) {
+      console.log('Error in getUser ', error);
+      throw error;
+    }
+  }
+}
+
+export function CreateProfile(
+  email: string,
+  user: string,
+  fingerprint: string,
+  tenancy: string,
+  region: string,
+  KeyFile: string
+) {
+  const config = `\r\n[${email}]
+  user=${user}
+  fingerprint=${fingerprint}
+  tenancy=${tenancy}
+  region=${region}
+  key_file=${keyPath}${KeyFile}
+  `;
+
+  try {
+    fs.appendFileSync(filePath, config);
+    console.log('New profile added to config file');
   } catch (e) {
-    console.log('Error in getInstanceConfiguration ', e);
+    console.log('Error in CreateProfile: ', e);
     throw e;
   }
 }
 
-async function getInstanceConfig(selectedConfig) {
+export function PofileExists(profileName: string) {
   try {
-    // Create a request and dependent object(s).
-    const getInstanceConfigurationRequest: core.requests.GetInstanceConfigurationRequest =
-      {
-        instanceConfigurationId: selectedConfig,
-      };
-
-    // Send request to the Client.
-    const getInstanceConfigurationResponse =
-      await clientManagement.getInstanceConfiguration(
-        getInstanceConfigurationRequest
-      );
-    return getInstanceConfigurationResponse;
-  } catch (error) {
-    console.log(`getInstanceConfiguration Failed with error  ${error}`);
-  }
-}
-
-export async function launchInstanceFromConfig(
-  details
-): Promise<core.models.Instance> {
-  try {
-    // log the details
-    console.log(details);
-    const instanceDetails = await getInstanceConfig(details.config.id);
-
-    console.log(instanceDetails);
-    const request: core.requests.LaunchInstanceConfigurationRequest = {
-      instanceConfigurationId: details.config.id,
-      instanceConfiguration: instanceDetails,
-    };
-
-    const response = await clientManagement.launchInstanceConfiguration(
-      request
+    const provider = new common.ConfigFileAuthenticationDetailsProvider(
+      filePath,
+      profileName
     );
-
-    return response;
+    console.log(provider);
+    return true;
   } catch (e) {
-    console.log('Error in launchInstanceFromConfig ', e);
+    console.log(e);
+    return false;
   }
 }

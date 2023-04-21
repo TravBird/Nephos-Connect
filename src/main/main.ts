@@ -9,30 +9,31 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
-import {
-  app,
-  BrowserWindow,
-  shell,
-  ipcMain,
-  BrowserView,
-  webContents,
-} from 'electron';
+import { app, BrowserWindow, shell, ipcMain, BrowserView } from 'electron';
 import log from 'electron-log';
 import jwt_decode from 'jwt-decode';
+import os from 'os';
+import fs from 'fs';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import IDCSAuth from './idcs_auth';
-import * as ociConnect from './oci_connect.ts';
+import { OCIConnect, CreateProfile, PofileExists } from './oci_connect';
 
 const { URL } = require('url');
+
+const crypto = require('crypto');
 
 const shutdown = require('electron-shutdown-command');
 
 const splash: BrowserWindow | null = null;
 let mainWindow: BrowserWindow | null = null;
-let authWindow: BrowserView | null = null;
+// let authWindow: BrowserView | null = null;
 
 let idcsAuth: IDCSAuth | null = null;
+
+let ociConnectUser: OCIConnect | null = null;
+
+const ociConnectAdmin = new OCIConnect('DEFAULT');
 
 // handle shutdown request from renderer
 ipcMain.handle('shutdown', (event, arg) => {
@@ -40,7 +41,7 @@ ipcMain.handle('shutdown', (event, arg) => {
   shutdown.shutdown();
 });
 
-async function windowChange(authWindow: BrowserView) {
+async function loginWindowChange(authWindow: BrowserView) {
   return new Promise((resolve) => {
     // awaiting for url change
     authWindow.webContents.on('will-navigate', async (event, url) => {
@@ -61,9 +62,12 @@ async function windowChange(authWindow: BrowserView) {
           // making access token request
           try {
             const tokens = await idcsAuth?.accessTokenRequest();
+            console.log(tokens);
             const idToken = tokens?.id_token;
             const accessToken = tokens?.access_token;
             idcsAuth?.setAccessToken(accessToken);
+            // testing access
+            // const response2 = await idcsAuth?.userInfoRequest();
             resolve({ success: 'true', idToken });
           } catch (error) {
             console.log(error);
@@ -74,11 +78,37 @@ async function windowChange(authWindow: BrowserView) {
     });
   });
 }
+
+async function registerWindowChange(authWindow: BrowserView) {
+  return new Promise((resolve) => {
+    // awaiting for url change
+    authWindow.webContents.on('will-navigate', async (event, url) => {
+      console.log('URL: ', url);
+      if (url.includes('ui/v1/signin')) {
+        // User cancelled registration
+        mainWindow?.setBrowserView(null);
+        authWindow.webContents.destroy();
+        authWindow = null;
+
+        resolve({ success: 'false' });
+      }
+      if (url.includes('/ui/v1/myconsole')) {
+        // User registered successfully
+        mainWindow?.setBrowserView(null);
+        authWindow.webContents.destroy();
+        resolve({ success: 'true' });
+      }
+    });
+  });
+}
+
 // login and register functionallity
 // login
-ipcMain.handle('oci-login-sso-create', async (event) => {
+ipcMain.handle('oci-login-sso', async (event) => {
+  console.log('Login SSO');
   idcsAuth = new IDCSAuth();
-  authWindow = new BrowserView();
+  console.log('idcsAuth: ', idcsAuth);
+  const authWindow = new BrowserView();
   authWindow.setBounds({ x: 0, y: 0, width: 0, height: 0 });
   mainWindow?.setBrowserView(authWindow);
   const bounds = mainWindow.getBounds();
@@ -93,68 +123,104 @@ ipcMain.handle('oci-login-sso-create', async (event) => {
     height: bounds.height,
   });
   console.log('Waiting for URL to change...');
-  const result = await windowChange(authWindow);
-  console.log('result: ', result);
+  const result = await loginWindowChange(authWindow);
+
+  if (result.success === 'true') {
+    const { idToken } = result;
+    const decoded = jwt_decode(idToken);
+    console.log('decoded: ', decoded);
+    const name = decoded.sub;
+    const tenancyId = decoded.tenancy_ocid;
+
+    const userOCID = await ociConnectAdmin.getUserOCID(name);
+
+    // checking if users profile exists in oci config, if not, creates
+    if (PofileExists(name)) {
+      console.log('Profile Exists');
+      ociConnectUser = new OCIConnect(name);
+    } else {
+      console.log('Profile Does Not Exist');
+      // generate key and fingerprint
+      crypto.generateKeyPair(
+        'rsa',
+        {
+          modulusLength: 4096,
+          publicKeyEncoding: {
+            type: 'spki',
+            format: 'pem',
+          },
+          privateKeyEncoding: {
+            type: 'pkcs8',
+            format: 'pem',
+          },
+        },
+        (err: any, publicKey, privateKey) => {
+          if (err) throw err;
+          console.log('publicKey: ', publicKey);
+          console.log('privateKey: ', privateKey);
+          const fingerprint = crypto
+            .createHash('sha256')
+            .update(publicKey)
+            .digest('hex');
+          // upload generated keys to OCI
+          try {
+            ociConnectAdmin.addApiKeyToUser(publicKey, userOCID);
+          } catch (error) {
+            console.log(error);
+            throw error;
+          }
+          // write key to file
+          const KeyFile = `oci_api_key_${name}.pem`;
+          fs.writeFileSync(
+            path.join(os.homedir(), '.oci/keys', KeyFile),
+            privateKey
+          );
+          // create profile
+          CreateProfile(
+            name,
+            userOCID,
+            fingerprint,
+            'ocid1.tenancy.oc1..aaaaaaaax25zqrammapt7upslefqq3kv6dzilt6z55yobnf2cmrn3tcimgpa',
+            'uk-london-1',
+            KeyFile
+          );
+          ociConnectUser = new OCIConnect(name);
+        }
+      );
+    }
+  }
+
   return result;
 });
 
-ipcMain.handle(
-  'login',
-  async (event, username, password) => {
-    console.log('login attempt', username, password);
-    log.info('login attempt', username, password);
-    if (username === 'test' && password === 'test') {
-      console.log('login success!');
-      log.info('login success!');
-      return { success: 'true' };
-    }
-    console.log('login failed!');
-    log.info('login failed!');
-    return { success: 'false' };
-  }
-  // hardcoded test for now
-);
-
 // register
-ipcMain.handle('register', async (event, username, password) => {
-  console.log('register attempt!', username, password);
-  // hardcoded reply for now
-  if (username === 'test' && password === 'test') {
-    console.log('register failed!');
-    return { success: 'true' };
-  }
-  return { success: 'false' };
-});
-
-// OCI Auth listeners
-ipcMain.handle('oci-login', async (event, username, password) => {
-  console.log('login attempt', username, password);
-  log.info('login attempt', username, password);
-  const login = idcsAuth.idcsLogin(); // or something
-  console.log(login);
-  if (login === true) {
-    console.log('login success!');
-    log.info('login success!');
-    return { success: 'true' };
-  }
-  console.log('login failed!');
-  log.info('login failed!');
-  return { success: 'false' };
-});
-
-ipcMain.handle('oci-register', async (event, username, email) => {
-  console.log('oci-register received');
-  const register = await ociConnect.createUser(username, email, 'test');
-  return register;
+ipcMain.handle('oci-register-sso', async (event) => {
+  idcsAuth = new IDCSAuth();
+  const authWindow = new BrowserView();
+  authWindow.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+  mainWindow?.setBrowserView(authWindow);
+  const bounds = mainWindow.getBounds();
+  // authWindow.webContents.executeJavaScript("document.getElementById(...)")
+  // register
+  await authWindow.webContents.loadURL(idcsAuth.getRegisterURL());
+  authWindow.setBounds({
+    x: 0,
+    y: 0,
+    width: bounds.width,
+    height: bounds.height,
+  });
+  console.log('Waiting for URL to change...');
+  const result = await registerWindowChange(authWindow);
+  console.log('result: ', result);
+  return { success: 'true' };
 });
 
 // OCI Request listeners
-
 // get OCI Shapes
 ipcMain.handle('instance-configs', async (event, arg) => {
   console.log('instance-configs request received');
   try {
-    const configs = await ociConnect.listInstanceConfigurations();
+    const configs = await ociConnectAdmin.listInstanceConfigurations();
     console.log('Configs received from OCI: ', configs);
     return configs;
   } catch (err) {
@@ -171,7 +237,7 @@ ipcMain.handle('instance-configs', async (event, arg) => {
 ipcMain.handle('start-vm', async (event, arg) => {
   console.log('start-vm received');
   log.info('start-vm received');
-  const info = ociConnect.launchInstanceFromConfig(arg);
+  const info = ociConnectAdmin.launchInstanceFromConfig(arg);
   return info;
 });
 
