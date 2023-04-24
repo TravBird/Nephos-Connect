@@ -57,7 +57,6 @@ export default class IdcsAuth {
   }
 
   setAccessToken(token: string) {
-    console.log('Setting access token: ', token);
     this.Access_Token = token;
   }
 
@@ -75,7 +74,6 @@ export default class IdcsAuth {
     )
       .then((res) => res.json())
       .then((body) => {
-        console.log(body);
         return body;
       });
   }
@@ -95,7 +93,6 @@ export default class IdcsAuth {
     )
     .then((res) => res.json())
       .then((body) => {
-        console.log(body);
         return body;
       });
   }

@@ -16,7 +16,103 @@ const transitionStyles = {
   exited: { opacity: 0 },
 };
 
-export function Home({ isActive }) {
+async function loginRequest(
+  onLoading,
+  onLoadingFirstTime,
+  onLoadingLocalSetup,
+  onLoadingError,
+  navigate
+) {
+  onLoading();
+  console.log('Making oci-login-sso request');
+  const ociLoginResult = await window.electron.ipcRendererOCIauth.login_sso(
+    'oci-login-sso'
+  );
+  console.log(ociLoginResult);
+  if (
+    ociLoginResult.success === 'true' &&
+    ociLoginResult.setupRequired === 'false'
+  ) {
+    // no setup required
+    console.log('No setup required');
+    localStorage.setItem('authenticated', 'true');
+    return navigate('/home');
+  }
+  if (
+    ociLoginResult.success === 'true' &&
+    ociLoginResult.setupRequired === 'true'
+  ) {
+    if (ociLoginResult.message === 'local') {
+      onLoadingLocalSetup();
+      console.log('Making setup-local request');
+      const ociLocalSetupResult =
+        await window.electron.ipcRendererSetup.setupLocal('setup-local');
+      console.log(ociLocalSetupResult);
+      if (
+        ociLocalSetupResult.success === 'true' &&
+        ociLocalSetupResult.setupRequired === 'true'
+      ) {
+        // additional setup required
+        onLoadingFirstTime();
+        console.log('Making setup-account request');
+        const ociFirstTimeSetupResult =
+          await window.electron.ipcRendererSetup.setupAccount('setup-account');
+        console.log(ociFirstTimeSetupResult);
+        if (ociFirstTimeSetupResult.success === 'true') {
+          console.log('Local and account setup complete!');
+          localStorage.setItem('authenticated', 'true');
+          return navigate('/home');
+        }
+        console.log('Account setup failed');
+        onLoadingError(ociFirstTimeSetupResult.message);
+        if (ociLocalSetupResult.success === 'true') {
+          // no additional setup required
+          console.log('Local setup complete!');
+          localStorage.setItem('authenticated', 'true');
+          return navigate('/home');
+        }
+        console.log('Local setup failed');
+        onLoadingError(ociLocalSetupResult.message);
+        return navigate('/');
+      }
+      if (
+        ociLocalSetupResult.success === 'true' &&
+        ociLocalSetupResult.setupRequired === 'false'
+      ) {
+        console.log('Local setup complete, and no additional setup required!');
+        localStorage.setItem('authenticated', 'true');
+        return navigate('/home');
+      }
+      console.log('Local setup failed');
+      onLoadingError(ociLocalSetupResult.message);
+    }
+    if (ociLoginResult.message === 'account') {
+      onLoadingFirstTime();
+      console.log('Making setup-account request');
+      const ociFirstTimeSetupResult =
+        await window.electron.ipcRendererSetup.setupAccount('setup-account');
+      console.log(ociFirstTimeSetupResult);
+      if (ociFirstTimeSetupResult.success === 'true') {
+        console.log('Account setup complete!');
+        localStorage.setItem('authenticated', 'true');
+        return navigate('/home');
+      }
+      console.log('Account setup failed');
+      onLoadingError(ociFirstTimeSetupResult.message);
+    } else {
+      onLoadingError(ociLoginResult.message);
+    }
+  }
+  onLoadingError('Unknown error');
+}
+
+export function Home({
+  isActive,
+  onLoading,
+  onLoadingFirstTime,
+  onLoadingLocalSetup,
+  onLoadingError,
+}) {
   const navigate = useNavigate();
   const [authenticated, setauthenticated] = useState(
     localStorage.getItem(localStorage.getItem('authenticated') || 'false')
@@ -28,21 +124,15 @@ export function Home({ isActive }) {
           <button
             className="LoginButton"
             type="button"
-            onClick={() => {
-              window.electron.ipcRendererOCIauth
-                .login_sso('oci-login-sso')
-                .then((result) => {
-                  if (result.success === 'true') {
-                    // localStorage.setItem('authenticated', 'true');
-                    setauthenticated('true');
-                    navigate('/home');
-                  }
-                  // setLoginFailed(true);
-                })
-                .catch((err) => {
-                  console.log(err);
-                });
-            }}
+            onClick={() =>
+              loginRequest(
+                onLoading,
+                onLoadingFirstTime,
+                onLoadingLocalSetup,
+                onLoadingError,
+                navigate
+              )
+            }
           >
             Login
           </button>
@@ -54,10 +144,9 @@ export function Home({ isActive }) {
                 .register_sso('oci-register-sso')
                 .then((result) => {
                   if (result.success === 'true') {
-                    // localStorage.setItem('authenticated', 'true');
-                    setauthenticated('true');
-                    navigate('/');
+                    return navigate('/');
                   }
+                  return null;
                 })
                 .catch((err) => {
                   console.log(err);
@@ -72,7 +161,31 @@ export function Home({ isActive }) {
   );
 }
 
-export function Loading({ isActive }) {
+export function Loading({ isActive, message }) {
+  if (message !== '') {
+    return (
+      <div>
+        {isActive ? (
+          <>
+            <h1>{message}</h1>
+            <div className="Loader" />
+          </>
+        ) : null}
+      </div>
+    );
+  }
+  if (message === '' && message.includes('error')) {
+    return (
+      <div>
+        {isActive ? (
+          <>
+            <h2 style="color:#FF0000">{message}</h2>
+            <div className="Loader" />
+          </>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <div>
       {isActive ? (

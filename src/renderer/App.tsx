@@ -16,14 +16,19 @@ function LoginRegisterChoice() {
   const authenticated = localStorage.getItem('authenticated');
   const navigate = useNavigate();
 
+  const [loadingMessageState, setLoadingMessageState] = useState('');
+
+  /*
   const Authenticated = () => {
     if (authenticated === 'true') {
       return navigate('/home');
     }
   };
+
   useEffect(() => {
     Authenticated();
   });
+  */
 
   function handlePowerOff() {
     window.electron.ipcRendererShutdown.shutdown('shutdown');
@@ -44,11 +49,25 @@ function LoginRegisterChoice() {
         <h1>Welcome to Nephos!</h1>
         <Home
           isActive={activeState === 'Home'}
-          // onLoginChoice={() => setActiveState('Login')}
-          // onRegisterChoice={() => setActiveState('Register')}
-          onLoadingChoice={() => setActiveState('Loading')}
+          onLoading={() => setActiveState('Loading')}
+          onLoadingFirstTime={() => {
+            setLoadingMessageState('Setting up your account, please wait...');
+          }}
+          onLoadingLocalSetup={() => {
+            setLoadingMessageState(
+              'Setting up local configuration, please wait...'
+            );
+          }}
+          onLoadingError={(error: string) => {
+            setLoadingMessageState(
+              `Unfortunately there was an ${error} \n Please try again...`
+            );
+          }}
         />
-        <Loading isActive={activeState === 'Loading'} />
+        <Loading
+          isActive={activeState === 'Loading'}
+          message={loadingMessageState}
+        />
       </div>
     </>
   );

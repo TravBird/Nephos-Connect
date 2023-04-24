@@ -9,7 +9,14 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain, BrowserView } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  shell,
+  ipcMain,
+  BrowserView,
+  webContents,
+} from 'electron';
 import log from 'electron-log';
 import jwt_decode from 'jwt-decode';
 import os from 'os';
@@ -17,35 +24,45 @@ import fs from 'fs';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import IDCSAuth from './idcs_auth';
-import { OCIConnect, CreateProfile, PofileExists } from './oci_connect';
+import {
+  OCIConnect,
+  CreateProfile,
+  PofileExists,
+  GenerateKeys,
+} from './oci_connect';
 
 const { URL } = require('url');
-
-const crypto = require('crypto');
 
 const shutdown = require('electron-shutdown-command');
 
 const splash: BrowserWindow | null = null;
 let mainWindow: BrowserWindow | null = null;
-// let authWindow: BrowserView | null = null;
+let authWindow: BrowserView | null = null;
 
-let idcsAuth: IDCSAuth | null = null;
+// let idcsAuth: IDCSAuth | null = null;
 
 let ociConnectUser: OCIConnect | null = null;
 
 const ociConnectAdmin = new OCIConnect('DEFAULT');
 
+let newUserName = '';
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 // handle shutdown request from renderer
-ipcMain.handle('shutdown', (event, arg) => {
+ipcMain.handle('shutdown', () => {
   console.log('shutdown request received');
   shutdown.shutdown();
 });
 
-async function loginWindowChange(authWindow: BrowserView) {
+async function loginWindowChange(idcsAuth: IDCSAuth) {
   return new Promise((resolve) => {
     // awaiting for url change
     authWindow.webContents.on('will-navigate', async (event, url) => {
-      console.log('URL: ', url);
       // getting auth token if url contains callback
       if (url.includes('http://localhost:3000/callback')) {
         // parsing url to get auth token
@@ -57,12 +74,16 @@ async function loginWindowChange(authWindow: BrowserView) {
           idcsAuth?.setAuthToken(token);
           // closing auth window
           mainWindow?.setBrowserView(null);
-          authWindow.webContents.destroy();
+
+          authWindow.webContents.session.clearStorageData();
+          authWindow.webContents.session.clearAuthCache();
+
+          authWindow = new BrowserView();
 
           // making access token request
           try {
             const tokens = await idcsAuth?.accessTokenRequest();
-            console.log(tokens);
+            // console.log(tokens);
             const idToken = tokens?.id_token;
             const accessToken = tokens?.access_token;
             idcsAuth?.setAccessToken(accessToken);
@@ -71,7 +92,7 @@ async function loginWindowChange(authWindow: BrowserView) {
             resolve({ success: 'true', idToken });
           } catch (error) {
             console.log(error);
-            resolve({ success: 'false' });
+            resolve({ success: 'false', idToken: '' });
           }
         }
       }
@@ -79,17 +100,14 @@ async function loginWindowChange(authWindow: BrowserView) {
   });
 }
 
-async function registerWindowChange(authWindow: BrowserView) {
+async function registerWindowChange() {
   return new Promise((resolve) => {
     // awaiting for url change
     authWindow.webContents.on('will-navigate', async (event, url) => {
-      console.log('URL: ', url);
       if (url.includes('ui/v1/signin')) {
         // User cancelled registration
         mainWindow?.setBrowserView(null);
         authWindow.webContents.destroy();
-        authWindow = null;
-
         resolve({ success: 'false' });
       }
       if (url.includes('/ui/v1/myconsole')) {
@@ -102,20 +120,95 @@ async function registerWindowChange(authWindow: BrowserView) {
   });
 }
 
+// User setup functions
+async function firstTimeUserSetup() {
+  return new Promise((resolve) => {
+    try {
+      // create compartment for the user
+      ociConnectAdmin?.createCompartment(ociConnectUser?.getProfileName());
+      resolve({ success: 'true' });
+    } catch (error) {
+      console.log(error);
+      resolve({ success: 'false' });
+    }
+  });
+}
+
+async function setupLocalUser(name: string, userOCID: string) {
+  console.log('Generating keys...');
+  console.log(GenerateKeys());
+  const result = await GenerateKeys();
+  const { publicKey, privateKey, fingerprint } = result;
+  return new Promise((resolve) => {
+    try {
+      // generate key and fingerprint
+      // upload generated keys to OCI
+      console.log(publicKey, privateKey, fingerprint);
+      console.log('Keys generated, uploading to OCI...');
+      try {
+        ociConnectAdmin.addApiKeyToUser(publicKey, userOCID);
+        console.log('Keys uploaded to OCI successfully');
+      } catch (error) {
+        console.log(error);
+        throw error;
+      }
+      // write key to file
+      console.log('Writing key to file...');
+      const KeyFile = `oci_api_key_${name}.pem`;
+      fs.writeFileSync(
+        path.join(os.homedir(), '.oci/keys', KeyFile),
+        privateKey
+      );
+      // create profile
+      console.log('Creating profile...');
+      CreateProfile(
+        name,
+        userOCID,
+        fingerprint,
+        'ocid1.tenancy.oc1..aaaaaaaax25zqrammapt7upslefqq3kv6dzilt6z55yobnf2cmrn3tcimgpa',
+        'uk-london-1',
+        KeyFile
+      );
+      ociConnectUser = new OCIConnect(name);
+
+      // checking if user is setup
+      ociConnectAdmin
+        .compartmentExists(name)
+        .then((exists) => {
+          if (exists) {
+            console.log('User already setup');
+            resolve({ success: 'true', setupRequired: 'false', message: '' });
+          }
+          console.log('Additional setup required');
+          resolve({
+            success: 'true',
+            setupRequired: 'true',
+            message: 'account',
+          });
+        })
+        .catch((err) => {
+          console.log(err);
+          throw err;
+        });
+    } catch (error) {
+      console.log(error);
+      resolve({ success: 'false' });
+    }
+  });
+}
 // login and register functionallity
 // login
 ipcMain.handle('oci-login-sso', async (event) => {
   console.log('Login SSO');
-  idcsAuth = new IDCSAuth();
-  console.log('idcsAuth: ', idcsAuth);
-  const authWindow = new BrowserView();
+  const idcsAuth = new IDCSAuth();
+  authWindow = new BrowserView();
   authWindow.setBounds({ x: 0, y: 0, width: 0, height: 0 });
   mainWindow?.setBrowserView(authWindow);
   const bounds = mainWindow.getBounds();
   // authWindow.webContents.executeJavaScript("document.getElementById(...)")
 
   // login
-  await authWindow.webContents.loadURL(idcsAuth.getAuthURL());
+  authWindow.webContents.loadURL(idcsAuth.getAuthURL());
   authWindow.setBounds({
     x: 0,
     y: 0,
@@ -123,80 +216,88 @@ ipcMain.handle('oci-login-sso', async (event) => {
     height: bounds.height,
   });
   console.log('Waiting for URL to change...');
-  const result = await loginWindowChange(authWindow);
+  const result = await loginWindowChange(idcsAuth);
 
   if (result.success === 'true') {
+    console.log('SSO Login and Access Token Request Succeeded');
     const { idToken } = result;
     const decoded = jwt_decode(idToken);
-    console.log('decoded: ', decoded);
     const name = decoded.sub;
-    const tenancyId = decoded.tenancy_ocid;
-
-    const userOCID = await ociConnectAdmin.getUserOCID(name);
 
     // checking if users profile exists in oci config, if not, creates
-    if (PofileExists(name)) {
+    if (PofileExists(name) === true) {
       console.log('Profile Exists');
       ociConnectUser = new OCIConnect(name);
-    } else {
-      console.log('Profile Does Not Exist');
-      // generate key and fingerprint
-      crypto.generateKeyPair(
-        'rsa',
-        {
-          modulusLength: 4096,
-          publicKeyEncoding: {
-            type: 'spki',
-            format: 'pem',
-          },
-          privateKeyEncoding: {
-            type: 'pkcs8',
-            format: 'pem',
-          },
-        },
-        (err: any, publicKey, privateKey) => {
-          if (err) throw err;
-          console.log('publicKey: ', publicKey);
-          console.log('privateKey: ', privateKey);
-          const fingerprint = crypto
-            .createHash('sha256')
-            .update(publicKey)
-            .digest('hex');
-          // upload generated keys to OCI
-          try {
-            ociConnectAdmin.addApiKeyToUser(publicKey, userOCID);
-          } catch (error) {
-            console.log(error);
-            throw error;
-          }
-          // write key to file
-          const KeyFile = `oci_api_key_${name}.pem`;
-          fs.writeFileSync(
-            path.join(os.homedir(), '.oci/keys', KeyFile),
-            privateKey
-          );
-          // create profile
-          CreateProfile(
-            name,
-            userOCID,
-            fingerprint,
-            'ocid1.tenancy.oc1..aaaaaaaax25zqrammapt7upslefqq3kv6dzilt6z55yobnf2cmrn3tcimgpa',
-            'uk-london-1',
-            KeyFile
-          );
-          ociConnectUser = new OCIConnect(name);
-        }
-      );
+      if (await ociConnectUser.compartmentExists(name)) {
+        console.log('Compartment Exists, user already setup');
+        return {
+          success: 'true',
+          setupRequired: 'false',
+        };
+      } else {
+      console.log('Compartment Does Not Exist, additional setup required');
+      return {
+        success: 'true',
+        setupRequired: 'true',
+        message: 'account',
+      };
     }
+    }
+    console.log('Profile Does Not Exist');
+    newUserName = name;
+    return {
+      success: 'true',
+      setupRequired: 'true',
+      message: 'local',
+    };
   }
+});
 
-  return result;
+ipcMain.handle('setup-local', async () => {
+  const userOCID = await ociConnectAdmin.getUserOCID(newUserName);
+  const result = await setupLocalUser(newUserName, userOCID);
+  ociConnectUser = new OCIConnect(newUserName);
+
+  if (result.success === 'true') {
+    console.log('User setup successfully');
+    if (result.setupRequired === 'false') {
+      return {
+        success: 'true',
+        setupRequired: 'false',
+      };
+    }
+    return {
+      success: 'true',
+      setupRequired: 'true',
+      message: 'account',
+    };
+  }
+  console.log('User setup failed');
+  return {
+    success: 'false',
+    setupRequired: 'true',
+    message: 'local',
+  };
+});
+
+ipcMain.handle('setup-account', async () => {
+  const result = await firstTimeUserSetup();
+  if (result.success === 'true') {
+    console.log('User setup successfully');
+    return {
+      success: 'true',
+    };
+  }
+  console.log('User setup failed');
+  return {
+    success: 'false',
+  };
 });
 
 // register
-ipcMain.handle('oci-register-sso', async (event) => {
-  idcsAuth = new IDCSAuth();
-  const authWindow = new BrowserView();
+ipcMain.handle('oci-register-sso', async () => {
+  const idcsAuth = new IDCSAuth();
+  authWindow = new BrowserView();
   authWindow.setBounds({ x: 0, y: 0, width: 0, height: 0 });
   mainWindow?.setBrowserView(authWindow);
   const bounds = mainWindow.getBounds();
@@ -217,18 +318,19 @@ ipcMain.handle('oci-register-sso', async (event) => {
 
 // OCI Request listeners
 // get OCI Shapes
-ipcMain.handle('instance-configs', async (event, arg) => {
+ipcMain.handle('instance-configs', async () => {
+  ociConnectUser = new OCIConnect(newUserName);
   console.log('instance-configs request received');
   try {
-    const configs = await ociConnectAdmin.listInstanceConfigurations();
+    const configs = await ociConnectUser.listInstanceConfigurations();
     console.log('Configs received from OCI: ', configs);
     return configs;
-  } catch (err) {
+  } catch (error) {
     console.log(
       'Exception in instance-configs icpMain handler in main.ts file: ',
-      err
+      error
     );
-    return err;
+    return { success: 'false', error };
   }
 });
 
@@ -237,8 +339,17 @@ ipcMain.handle('instance-configs', async (event, arg) => {
 ipcMain.handle('start-vm', async (event, arg) => {
   console.log('start-vm received');
   log.info('start-vm received');
-  const info = ociConnectAdmin.launchInstanceFromConfig(arg);
+  const info = ociConnectUser.launchInstanceFromConfig(arg);
   return info;
+});
+
+ipcMain.handle('logout', async (event, arg) => {
+  console.log('logout received');
+
+  authWindow = null;
+  ociConnectUser = null;
+
+  return { success: 'true' };
 });
 
 if (process.env.NODE_ENV === 'production') {

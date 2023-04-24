@@ -1,6 +1,6 @@
 {
   "name": "nephos-connect",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Nephos Connect App, based on Electron React Boilerplate",
   "license": "MIT",
   "author": {

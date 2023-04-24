@@ -16,6 +16,10 @@ const electronHandler = {
       const result = await ipcRenderer.invoke(channel);
       return result;
     },
+    async logout(channel: 'logout') {
+      const result = await ipcRenderer.invoke(channel);
+      return result;
+    },
   },
   ipcRendererOCI: {
     async listInstanceConfigs(channel: 'instance-configs', request: any) {
@@ -24,6 +28,16 @@ const electronHandler = {
     },
     async startVM(channel: 'start-vm', request: any) {
       const result = await ipcRenderer.invoke(channel, request);
+      return result;
+    },
+  },
+  ipcRendererSetup: {
+    async setupLocal(channel: 'setup-local') {
+      const result = await ipcRenderer.invoke(channel);
+      return result;
+    },
+    async setupAccount(channel: 'setup-account') {
+      const result = await ipcRenderer.invoke(channel);
       return result;
     },
   },
