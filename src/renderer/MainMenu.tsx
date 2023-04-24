@@ -1,8 +1,29 @@
+/* eslint-disable react/jsx-filename-extension */
 import { MemoryRouter as Router, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import './App.css';
 import { config } from 'process';
 import startVM from './StartVM';
+
+function ListSystems() {
+  const [open, setOpen] = useState(false);
+  const [systems, setSystems] = useState([]);
+
+  if (open === false) {
+    return (
+      <div id="ListSystems">
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(true);
+          }}
+        >
+          + List Systems
+        </button>
+      </div>
+    );
+  }
+}
 
 function ConfigInfo({ config, selected, setSelected }) {
   const [open, setOpen] = useState(false);
@@ -129,9 +150,18 @@ function LogoutButton(setAuthenticated: any) {
       type="button"
       id="LogoutButton"
       onClick={() => {
-        localStorage.removeItem('authenticated');
+        // localStorage.removeItem('authenticated');
         // setAuthenticated('false');
-        navigate('/');
+        window.electron.ipcRendererOCIauth
+          .logout('logout')
+          .then((result) => {
+            console.log(result);
+            if (result.success === 'true') {
+              // localStorage.removeItem('authenticated');
+              navigate('/');
+            }
+          })
+          .catch((err) => console.log(err));
       }}
     >
       Logout
