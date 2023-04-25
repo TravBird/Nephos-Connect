@@ -58,12 +58,12 @@ const electronHandler = {
     },
   },
   ipcRendererInternet: {
-    async checkInternet(channel: 'check-internet') {
+    async getWifiNetworks(channel: 'get-wifi-networks') {
       const result = await ipcRenderer.invoke(channel);
       return result;
     },
-    async addWifiNetwork(channel: 'add-wifi-network', request: any) {
-      const result = await ipcRenderer.invoke(channel, request);
+    async addWifiNetwork(channel: 'add-wifi-network', args) {
+      const result = await ipcRenderer.invoke(channel, args);
       return result;
     },
   },

@@ -16,13 +16,24 @@ const transitionStyles = {
   exited: { opacity: 0 },
 };
 
+async function checkInternet() {
+  console.log(navigator.onLine);
+  if (!navigator.onLine) {
+  }
+}
+
 async function loginRequest(
   onLoading,
   onLoadingFirstTime,
   onLoadingLocalSetup,
   onLoadingError,
-  navigate
+  navigate,
+  setInternet
 ) {
+  if (!navigator.onLine) {
+    setInternet(false);
+    return;
+  }
   onLoading();
   console.log('Making oci-login-sso request');
   const ociLoginResult = await window.electron.ipcRendererOCIauth.login_sso(
@@ -112,50 +123,84 @@ export function Home({
   onLoadingFirstTime,
   onLoadingLocalSetup,
   onLoadingError,
+  internet,
+  setInternet,
 }) {
   const navigate = useNavigate();
   const [authenticated, setauthenticated] = useState(
     localStorage.getItem(localStorage.getItem('authenticated') || 'false')
   );
+
+  useEffect(() => {
+    if (!navigator.onLine) {
+      console.log('No internet connection');
+      setInternet(false);
+      const buttons = document.getElementsByClassName('LoginButton');
+      for (let i = 0; i < buttons.length; i++) {
+        buttons[i].disabled = true;
+      }
+    }
+    setInternet(true);
+    const buttons = document.getElementsByClassName('LoginButton');
+    for (let i = 0; i < buttons.length; i++) {
+      buttons[i].disabled = false;
+    }
+  }, [setInternet]);
   return (
     <div className="Home">
       {isActive ? (
-        <div className="LoginRegister">
-          <button
-            className="LoginButton"
-            type="button"
-            onClick={() =>
-              loginRequest(
-                onLoading,
-                onLoadingFirstTime,
-                onLoadingLocalSetup,
-                onLoadingError,
-                navigate
-              )
-            }
-          >
-            Login
-          </button>
-          <button
-            className="LoginButton"
-            type="button"
-            onClick={() => {
-              window.electron.ipcRendererOCIauth
-                .register_sso('oci-register-sso')
-                .then((result) => {
-                  if (result.success === 'true') {
-                    return navigate('/');
-                  }
-                  return null;
-                })
-                .catch((err) => {
-                  console.log(err);
-                });
-            }}
-          >
-            Register
-          </button>
-        </div>
+        <>
+          <div className="LoginRegister">
+            <button
+              className="LoginButton"
+              type="button"
+              onClick={() =>
+                loginRequest(
+                  onLoading,
+                  onLoadingFirstTime,
+                  onLoadingLocalSetup,
+                  onLoadingError,
+                  navigate,
+                  setInternet
+                )
+              }
+            >
+              Login
+            </button>
+            <button
+              className="LoginButton"
+              type="button"
+              onClick={() => {
+                if (!navigator.onLine) {
+                  setInternet(false);
+                  return;
+                }
+                window.electron.ipcRendererOCIauth
+                  .register_sso('oci-register-sso')
+                  .then((result) => {
+                    if (result.success === 'true') {
+                      return navigate('/');
+                    }
+                    return null;
+                  })
+                  .catch((err) => {
+                    console.log(err);
+                  });
+              }}
+            >
+              Register
+            </button>
+            <br />
+          </div>
+          {!internet ? (
+            <div id="internetStatus">
+              {' '}
+              <h4 style={{ color: 'red' }}> No Internet Detected!</h4> Nephos
+              cannot operate without a connection, please connect the device via
+              Ethernet or use the WiFi options button in the top right{' '}
+            </div>
+          ) : null}
+        </>
       ) : null}
     </div>
   );
@@ -179,7 +224,7 @@ export function Loading({ isActive, message }) {
       <div>
         {isActive ? (
           <>
-            <h2 style="color:#FF0000">{message}</h2>
+            <h2 style={{ color: 'red' }}>{message}</h2>
             <div className="Loader" />
           </>
         ) : null}

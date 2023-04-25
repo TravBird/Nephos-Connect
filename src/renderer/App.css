@@ -157,7 +157,15 @@ a:hover {
   width: 100%;
 }
 
-#CreateSystemForm{
+.NetworkInfo{
+  border: solid 1px black;
+  padding: 5px;
+  color: black;
+}
+#WifiSettings{
+  color: black;
+}
+#CreateSystemForm {
   display: none; /* Hidden by default */
   position: fixed; /* Stay in place */
   z-index: 1; /* Sit on top */
@@ -170,7 +178,25 @@ a:hover {
   background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
 }
 
-.CreateSystemFormContent{
+.SignalIcon{
+  height: 20px;
+  width: 25px;
+}
+
+#WifiSettings {
+  display: block; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 1; /* Sit on top */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgb(0,0,0); /* Fallback color */
+  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+.CreateSystemFormContent, .WifiSettingsContent{
   background-color: #8ed0e4;
   margin: 15% auto; /* 15% from the top and centered */
   padding: 20px;
@@ -178,15 +204,15 @@ a:hover {
   width: 50%; /* Could be more or less, depending on screen size */
 }
 
-.CloseCreateSystemForm{
+.CloseCreateSystemForm, .CloseWifiSettings {
   color: #064559;
   float: right;
   font-size: 28px;
   font-weight: bold;
 }
 
-.CloseCreateSystemForm:hover,
-.CloseCreateSystemForm:focus {
+.CloseCreateSystemForm:hover,.CloseCreateSystemForm:focus,
+.CloseWifiSettings:hover, .CloseWifiSettings:focus {
   color: #000;
   text-decoration: none;
   cursor: pointer;

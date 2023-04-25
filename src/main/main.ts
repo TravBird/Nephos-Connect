@@ -1,13 +1,4 @@
 /* eslint global-require: off, no-console: off, promise/always-return: off */
-
-/**
- * This module executes inside of electron's main process. You can start
- * electron renderer process from here and communicate with the other processes
- * through IPC.
- *
- * When running `npm run build` or `npm run build:main`, this file is compiled to
- * `./src/main.js` using webpack. This gives us some performance wins.
- */
 import path from 'path';
 import {
   app,
@@ -16,6 +7,7 @@ import {
   ipcMain,
   BrowserView,
   webContents,
+  net,
 } from 'electron';
 import log from 'electron-log';
 import jwt_decode from 'jwt-decode';
@@ -31,7 +23,11 @@ import {
   GenerateKeys,
 } from './oci_connect';
 
-const { dialog } = require('electron');
+const wifi = require('node-wifi');
+
+wifi.init({
+  iface: null,
+});
 
 const { URL } = require('url');
 
@@ -377,15 +373,34 @@ ipcMain.handle('logout', async (event, arg) => {
   return { success: 'true' };
 });
 
-// TODO:
-ipcMain.handle('check-internet', async (event, arg) => {
-  console.log('check-internet received');
-  return { success: 'true' };
+// WiFi listeners
+ipcMain.handle('get-wifi-networks', async (event, arg) => {
+  console.log('get-wifi-networks received');
+
+  try {
+    const networks = await wifi.scan();
+    console.log('Networks received from WiFi: ', networks);
+    networks.reverse();
+    return networks;
+  } catch (error) {
+    console.log(error);
+    return { success: 'false', error };
+  }
 });
 
 ipcMain.handle('add-wifi-network', async (event, arg) => {
   console.log('add-wifi-network received');
-  return { success: 'true' };
+  try {
+    const result = await wifi.connect({ ssid: arg[0], password: arg[1] });
+    console.log(result);
+    if (result.includes('Error')) {
+      return { success: 'false', error: result };
+    }
+    return { success: 'true' };
+  } catch (error) {
+    console.log(error);
+    return { success: 'false', error };
+  }
 });
 
 if (process.env.NODE_ENV === 'production') {
