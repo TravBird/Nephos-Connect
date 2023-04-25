@@ -71,6 +71,13 @@ function ListNewSystem({ config, selected, setSelected }) {
   );
 }
 
+async function getSystemConfigs() {
+  const result = await window.electron.ipcRendererOCI.listSystemConfigurations(
+    'list-system-configs'
+  );
+  return result;
+}
+
 function NewSystemSelection({ selectedNewSystem, setSelectedNewSystem }) {
   const [configs, setConfigs] = useState([]);
 
@@ -125,12 +132,6 @@ async function getUserSystems() {
   return result;
 }
 
-async function getSystemConfigs() {
-  const result = await window.electron.ipcRendererOCI.listSystemConfigurations(
-    'list-system-configs'
-  );
-  return result;
-}
 
 function ListSystem({ system, selected, setSelected }) {
   const [open, setOpen] = useState(false);
