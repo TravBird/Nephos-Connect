@@ -36,14 +36,28 @@ function LoginRegisterChoice() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => {
-          handlePowerOff();
-        }}
-      >
-        Power Off
-      </button>
+      <div id="TopMenu">
+        <button
+          type="button"
+          id="PowerOffButton"
+          onClick={() => {
+            handlePowerOff();
+          }}
+        >
+          Power Off
+        </button>
+
+        <button
+          type="button"
+          id="WirelessSettingsButton"
+          onClick={() => {
+            // open wifi settings
+            window.electron.ipcRendererInternet.getWifiNetworks('get-wifi-networks');
+          }}
+        >
+          Wireless Settings
+        </button>
+      </div>
 
       <div className="LoginRegisterContainer">
         <h1>Welcome to Nephos!</h1>

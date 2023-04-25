@@ -19,16 +19,23 @@ body {
   align-items: center;
 }
 
-.topMenu {
-  position: absolute;
-  top: 0;
-  width: 100%;
-  height: 50px;
+#TopMenu {
   display: flex;
-  justify-content: center;
   align-items: center;
-  z-index: 2;
+  justify-content: space-between;
+  flex-direction: row;
+
 }
+
+#PowerOffButton{
+  max-width: 50%;
+  justify-self: left;
+}
+#WirelessSettingsButton{
+  justify-self: right;
+  max-width: 50%;
+}
+
 button {
   background-color: white;
   border-radius: 5px;
@@ -42,15 +49,31 @@ button {
   width: 100%;
 }
 
-.LoginRegisterContainer{
+.home{
   height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+}
+
+.LoginRegisterContainer{
+  height: 300px;
   width: 100%;
   text-align: center;
+}
+
+#internetStatus{
+  display: inline-block;
+  width: 50%;
+  flex-grow: 1;
 }
 
 .LoginRegister{
   display: flex;
   justify-content: center;
+  align-items: center;
+  flex-grow: 2;
 }
 .LoginButton{
   background-color: white;
@@ -63,6 +86,8 @@ button {
   cursor: pointer;
   transition: all ease-in 0.1s;
   opacity: 0.9;
+  height: 75px;
+  width: 150px;
 }
 
 .Form {
