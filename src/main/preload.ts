@@ -22,11 +22,27 @@ const electronHandler = {
     },
   },
   ipcRendererOCI: {
-    async listInstanceConfigs(channel: 'instance-configs', request: any) {
+    async startSystem(channel: 'start-system', request: any) {
+      const result = ipcRenderer.invoke(channel, request);
+      return result;
+    },
+    async stopSystem(channel: 'stop-system', request: any) {
       const result = await ipcRenderer.invoke(channel, request);
       return result;
     },
-    async startVM(channel: 'start-vm', request: any) {
+    async listUserSystems(channel: 'list-user-systems') {
+      const result = await ipcRenderer.invoke(channel);
+      return result;
+    },
+    async terminateSystem(channel: 'terminate-system', request: any) {
+      const result = await ipcRenderer.invoke(channel, request);
+      return result;
+    },
+    async listSystemConfigurations(channel: 'list-system-configs') {
+      const result = await ipcRenderer.invoke(channel);
+      return result;
+    },
+    async createSystem(channel: 'create-system', request: any) {
       const result = await ipcRenderer.invoke(channel, request);
       return result;
     },
@@ -38,6 +54,16 @@ const electronHandler = {
     },
     async setupAccount(channel: 'setup-account') {
       const result = await ipcRenderer.invoke(channel);
+      return result;
+    },
+  },
+  ipcRendererInternet: {
+    async checkInternet(channel: 'check-internet') {
+      const result = await ipcRenderer.invoke(channel);
+      return result;
+    },
+    async addWifiNetwork(channel: 'add-wifi-network', request: any) {
+      const result = await ipcRenderer.invoke(channel, request);
       return result;
     },
   },

@@ -31,6 +31,8 @@ import {
   GenerateKeys,
 } from './oci_connect';
 
+const { dialog } = require('electron');
+
 const { URL } = require('url');
 
 const shutdown = require('electron-shutdown-command');
@@ -46,12 +48,6 @@ let ociConnectUser: OCIConnect | null = null;
 const ociConnectAdmin = new OCIConnect('DEFAULT');
 
 let newUserName = '';
-
-function sleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
 
 // handle shutdown request from renderer
 ipcMain.handle('shutdown', () => {
@@ -170,13 +166,14 @@ async function setupLocalUser(name: string, userOCID: string) {
         KeyFile
       );
       ociConnectUser = new OCIConnect(name);
-
       // checking if user is setup
       ociConnectAdmin
-        .compartmentExists(name)
-        .then((exists) => {
-          if (exists) {
+        .findUserCompartment(name)
+        .then((userCompartment) => {
+          if (userCompartment !== undefined) {
             console.log('User already setup');
+            console.log('Setting user compartment to ', userCompartment);
+            ociConnectUser?.setUserCompartment(userCompartment.id);
             resolve({ success: 'true', setupRequired: 'false', message: '' });
           }
           console.log('Additional setup required');
@@ -228,20 +225,22 @@ ipcMain.handle('oci-login-sso', async (event) => {
     if (PofileExists(name) === true) {
       console.log('Profile Exists');
       ociConnectUser = new OCIConnect(name);
-      if (await ociConnectUser.compartmentExists(name)) {
+      const userCompartment = await ociConnectAdmin.findUserCompartment(name);
+      if (userCompartment !== undefined) {
         console.log('Compartment Exists, user already setup');
+        console.log('Setting user compartment to ', userCompartment.id);
+        ociConnectUser.setUserCompartment(userCompartment.id);
         return {
           success: 'true',
           setupRequired: 'false',
         };
-      } else {
+      }
       console.log('Compartment Does Not Exist, additional setup required');
       return {
         success: 'true',
         setupRequired: 'true',
         message: 'account',
       };
-    }
     }
     console.log('Profile Does Not Exist');
     newUserName = name;
@@ -256,7 +255,6 @@ ipcMain.handle('oci-login-sso', async (event) => {
 ipcMain.handle('setup-local', async () => {
   const userOCID = await ociConnectAdmin.getUserOCID(newUserName);
   const result = await setupLocalUser(newUserName, userOCID);
-  ociConnectUser = new OCIConnect(newUserName);
 
   if (result.success === 'true') {
     console.log('User setup successfully');
@@ -316,31 +314,58 @@ ipcMain.handle('oci-register-sso', async () => {
   return { success: 'true' };
 });
 
-// OCI Request listeners
-// get OCI Shapes
-ipcMain.handle('instance-configs', async () => {
-  ociConnectUser = new OCIConnect(newUserName);
-  console.log('instance-configs request received');
+// OCI Request
+// OCI System listeners
+// Create new system
+ipcMain.handle('create-system', async (event, arg) => {
+  console.log('create-system received');
+  return ociConnectUser?.launchInstanceFromConfig(arg);
+});
+// start and stop OCI VM System
+ipcMain.handle('start-system', async (event, arg) => {
+  console.log('start-system received');
+  return ociConnectUser?.startInstance(arg);
+});
+ipcMain.handle('stop-system', async (event, arg) => {
+  console.log('stop-system received');
+  return ociConnectUser?.stopInstance(arg);
+});
+// Terminate System
+ipcMain.handle('terminate-system', async (event, arg) => {
+  console.log('termiante-system received');
+  return ociConnectUser?.terminateInstance(arg);
+});
+
+ipcMain.handle('list-user-systems', async () => {
+  console.log('list-user-systems received');
   try {
-    const configs = await ociConnectUser.listInstanceConfigurations();
-    console.log('Configs received from OCI: ', configs);
-    return configs;
+    const systems = await ociConnectUser?.listUserInstances();
+    console.log('Systems received from OCI: ', systems);
+    return systems;
   } catch (error) {
     console.log(
-      'Exception in instance-configs icpMain handler in main.ts file: ',
+      'Exception in list-user-systems icpMain handler in main.ts file: ',
       error
     );
     return { success: 'false', error };
   }
 });
 
-// start OCI VM
-// In testing, subject to change
-ipcMain.handle('start-vm', async (event, arg) => {
-  console.log('start-vm received');
-  log.info('start-vm received');
-  const info = ociConnectUser.launchInstanceFromConfig(arg);
-  return info;
+// get OCI Instance Configs
+ipcMain.handle('list-system-configs', async () => {
+  // ociConnectUser = new OCIConnect(newUserName);
+  console.log('list-system-config request received');
+  try {
+    const configs = await ociConnectUser?.listInstanceConfigurations();
+    console.log('Configs received from OCI: ', configs);
+    return configs;
+  } catch (error) {
+    console.log(
+      'Exception in list-system-config icpMain handler in main.ts file: ',
+      error
+    );
+    return { success: 'false', error };
+  }
 });
 
 ipcMain.handle('logout', async (event, arg) => {
@@ -349,6 +374,17 @@ ipcMain.handle('logout', async (event, arg) => {
   authWindow = null;
   ociConnectUser = null;
 
+  return { success: 'true' };
+});
+
+// TODO:
+ipcMain.handle('check-internet', async (event, arg) => {
+  console.log('check-internet received');
+  return { success: 'true' };
+});
+
+ipcMain.handle('add-wifi-network', async (event, arg) => {
+  console.log('add-wifi-network received');
   return { success: 'true' };
 });
 
@@ -390,18 +426,6 @@ const createWindow = async () => {
   const getAssetPath = (...paths: string[]): string => {
     return path.join(RESOURCES_PATH, ...paths);
   };
-
-  /*
-  splash = new BrowserWindow({
-    fullscreen: true,
-    frame: false,
-    alwaysOnTop: true,
-    backgroundColor: '#3DCAF5',
-  });
-  splash.loadURL(
-    `file://${path.resolve(__dirname, '../renderer/', 'splash.html')}`
-  );
-    */
 
   // adjust the window size
   mainWindow = new BrowserWindow({

@@ -80,16 +80,13 @@ export class OCIConnect {
       const request: core.requests.ListInstancesRequest = {
         compartmentId: this.userCompartment,
       };
-
       // sending request to client
       const response = await this.computeClient.listInstances(request);
-
       console.log(
         'Response recieved from list instances: ',
         response,
         '. Response Ended.'
       );
-
       return response.items;
     } catch (e) {
       console.log('Error in listUserInstances ', e);
@@ -127,7 +124,7 @@ export class OCIConnect {
     try {
       const request: core.requests.InstanceActionRequest = {
         instanceId,
-        action: core.requests.InstanceActionRequest.Action.Stop,
+        action: core.requests.InstanceActionRequest.Action.Softstop,
       };
 
       const response = await this.computeClient.instanceAction(request);
@@ -145,6 +142,30 @@ export class OCIConnect {
     }
   }
 
+  // Teriminate instance
+  async terminateInstance(
+    instanceId: string
+  ): Promise<responses.TerminateInstanceResponse> {
+    try {
+      const request: core.requests.TerminateInstanceRequest = {
+        instanceId,
+      };
+
+      const response = await this.computeClient.terminateInstance(request);
+
+      console.log(
+        'Response recieved from terminate instance: ',
+        response,
+        '. Response Ended.'
+      );
+
+      return response;
+    } catch (e) {
+      console.log('Error in terminateInstance ', e);
+      throw e;
+    }
+  }
+
   // Instance configuration functions
   // getting list of all instance configs
   async listInstanceConfigurations(): Promise<
@@ -156,18 +177,15 @@ export class OCIConnect {
         compartmentId:
           'ocid1.compartment.oc1..aaaaaaaamowsqxoe4apfqwhqdxp6s4b4222s5eqqpt3a4fegjorekzkw3wta',
       };
-
       // sending request to client
       const response = await this.clientManagement.listInstanceConfigurations(
         request
       );
-
       console.log(
         'Response recieved from get instance configuration: ',
         response,
         '. Response Ended.'
       );
-
       return response.items;
     } catch (e) {
       console.log('Error in getInstanceConfiguration ', e);
@@ -261,7 +279,7 @@ export class OCIConnect {
 
   // Compartment management functions
   // Check if compartment exists
-  async compartmentExists(profileName) {
+  async findUserCompartment(profileName) {
     try {
       const compartmentName = profileName;
       const request: identity.requests.ListCompartmentsRequest = {
@@ -270,10 +288,10 @@ export class OCIConnect {
         name: compartmentName,
       };
       const response = await this.identityClient.listCompartments(request);
-      if (response.items.length > 0) {
-        return true;
+      if (response.items.length === 0) {
+        return undefined;
       }
-      return false;
+      return response.items[0];
     } catch (error) {
       console.log('Error in compartmentExists ', error);
       throw error;
