@@ -64,9 +64,11 @@ export class OCIConnect {
       authenticationDetailsProvider: provider,
     });
 
-    this.keyClient.endpoint = 'https://kms.uk-london-1.oraclecloud.com';
+    this.keyClient.endpoint =
+      'https://d5seppcnaaggq-management.kms.uk-london-1.oraclecloud.com';
 
-    this.keyCryptoClient.endpoint = 'https://kms.uk-london-1.oraclecloud.com';
+    this.keyCryptoClient.endpoint =
+      'https://d5seppcnaaggq-crypto.kms.uk-london-1.oraclecloud.com';
   }
 
   getProfileName() {
@@ -243,7 +245,7 @@ export class OCIConnect {
     try {
       const request: keyManagement.requests.ListKeysRequest = {
         compartmentId:
-          'ocid1.vault.oc1.uk-london-1.d5seppcnaaggq.abwgiljsjjkkpibzs3gv4rqr2nsykyqwk4gubtrunqnaqihvcr2srgtzxqva',
+          'ocid1.compartment.oc1..aaaaaaaa3dfdzabug5l5ymsmgctlnabppmn2umgloy5uja2ppwr2m4aqe6wq',
       };
 
       const response = await this.keyClient.listKeys(request);
