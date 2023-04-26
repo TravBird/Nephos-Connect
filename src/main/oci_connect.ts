@@ -56,19 +56,17 @@ export class OCIConnect {
       authenticationDetailsProvider: provider,
     });
 
-    console.log(provider);
-
-    provider.getRegion();
-    const newProvider = provider;
-    newProvider.setRegion('us-ashburn-1');
-
     this.keyClient = new keyManagement.KmsManagementClient({
-      authenticationDetailsProvider: newProvider,
+      authenticationDetailsProvider: provider,
     });
 
     this.keyCryptoClient = new keyManagement.KmsCryptoClient({
-      authenticationDetailsProvider: newProvider,
+      authenticationDetailsProvider: provider,
     });
+
+    this.keyClient.endpoint = 'https://kms.uk-london-1.oraclecloud.com';
+
+    this.keyCryptoClient.endpoint = 'https://kms.uk-london-1.oraclecloud.com';
   }
 
   getProfileName() {
@@ -245,7 +243,7 @@ export class OCIConnect {
     try {
       const request: keyManagement.requests.ListKeysRequest = {
         compartmentId:
-          'ocid1.compartment.oc1..aaaaaaaa3dfdzabug5l5ymsmgctlnabppmn2umgloy5uja2ppwr2m4aqe6wq',
+          'ocid1.vault.oc1.uk-london-1.d5seppcnaaggq.abwgiljsjjkkpibzs3gv4rqr2nsykyqwk4gubtrunqnaqihvcr2srgtzxqva',
       };
 
       const response = await this.keyClient.listKeys(request);
