@@ -2,7 +2,7 @@
 import * as common from 'oci-common';
 import * as core from 'oci-core';
 import * as identity from 'oci-identity';
-import * as wr from 'oci-workrequests';
+import * as keyManagement from 'oci-keymanagement';
 import * as responses from 'oci-core/lib/response';
 import * as fs from 'fs';
 import os from 'os';
@@ -19,6 +19,10 @@ export class OCIConnect {
   clientManagement: core.ComputeManagementClient;
 
   identityClient: identity.IdentityClient;
+
+  keyClient: keyManagement.KmsManagementClient;
+
+  keyCyrptoClient: keyManagement.KmsCryptoClient;
 
   profileName: string;
 
@@ -49,6 +53,14 @@ export class OCIConnect {
     });
 
     this.identityClient = new identity.IdentityClient({
+      authenticationDetailsProvider: provider,
+    });
+
+    this.keyClient = new keyManagement.KmsManagementClient({
+      authenticationDetailsProvider: provider,
+    });
+
+    this.keyCyrptoClient = new keyManagement.KmsCryptoClient({
       authenticationDetailsProvider: provider,
     });
   }
@@ -162,6 +174,129 @@ export class OCIConnect {
       return response;
     } catch (e) {
       console.log('Error in terminateInstance ', e);
+      throw e;
+    }
+  }
+
+  // SSH Key functions
+  async createSSHKey(
+    compartmentId: string,
+    displayName: string,
+    keyShape: keyManagement.models.KeyShape
+  ): Promise<keyManagement.models.CreateKeyDetails> {
+    try {
+      const request: keyManagement.requests.CreateKeyRequest = {
+        createKeyDetails: {
+          compartmentId,
+          displayName,
+          keyShape,
+        },
+      };
+
+      const response = await this.keyClient.createKey(request);
+
+      console.log(
+        'Response recieved from create key: ',
+        response,
+        '. Response Ended.'
+      );
+      return response;
+    } catch (e) {
+      console.log('Error in createSSHKey ', e);
+      throw e;
+    }
+  }
+
+  async importSSHKey(
+    compartmentId: string,
+    displayName: string,
+    keyShape: keyManagement.models.KeyShape,
+    wrappedImportKey: keyManagement.models.WrappedImportKey
+  ): Promise<keyManagement.models.ImportKeyDetails> {
+    try {
+      const request: keyManagement.requests.ImportKeyRequest = {
+        importKeyDetails: {
+          compartmentId,
+          displayName,
+          keyShape,
+          wrappedImportKey,
+        },
+      };
+      const response = await this.keyClient.importKey(request);
+      console.log(
+        'Response recieved from import key: ',
+        response,
+        '. Response Ended.'
+      );
+      return response;
+    } catch (e) {
+      console.log('Error in importSSHKey ', e);
+      throw e;
+    }
+  }
+
+  async listSSHKeys(): Promise<keyManagement.models.KeySummary[]> {
+    try {
+      const request: keyManagement.requests.ListKeysRequest = {
+        compartmentId: this.userCompartment,
+      };
+
+      const response = await this.keyClient.listKeys(request);
+
+      console.log(
+        'Response recieved from list keys: ',
+        response,
+        '. Response Ended.'
+      );
+      return response.items;
+    } catch (e) {
+      console.log('Error in listSSHKeys ', e);
+      throw e;
+    }
+  }
+
+  async getSSHKey(keyId: string): Promise<keyManagement.models.Key> {
+    try {
+      const request: keyManagement.requests.GetKeyRequest = {
+        keyId,
+      };
+
+      const response = await this.keyClient.exportKey(request);
+      console.log(
+        'Response recieved from get key: ',
+        response,
+        '. Response Ended.'
+      );
+      return response.key;
+    } catch (e) {
+      console.log('Error in getSSHKey ', e);
+      throw e;
+    }
+  }
+
+  async exportSSHKey(
+    keyId: string,
+    algorithm: keyManagement.models.ExportKeyDetails.Algorithm,
+    publicKey: string
+  ): Promise<keyManagement.models.ExportedKeyData> {
+    try {
+      const request: keyManagement.requests.ExportKeyRequest = {
+        exportKeyDetails: {
+          keyId,
+          algorithm,
+          publicKey,
+        },
+      };
+
+      const response = await this.keyCyrptoClient.exportKey(request);
+      console.log(
+        'Response recieved from export key: ',
+        response,
+        '. Response Ended.'
+      );
+      return response.exportedKeyData;
+    } catch (e) {
+      console.log('Error in exportSSHKey ', e);
       throw e;
     }
   }
