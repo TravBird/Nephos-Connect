@@ -132,7 +132,6 @@ async function getUserSystems() {
   return result;
 }
 
-
 function ListSystem({ system, selected, setSelected }) {
   const [open, setOpen] = useState(false);
 
@@ -297,6 +296,22 @@ function LogoutButton() {
   );
 }
 
+function vaultSSHTest() {
+  window.electron.ipcRendererVault
+    .listSSHKeys('vault-list-ssh-keys')
+    .then((result) => {
+      console.log(result);
+    });
+}
+
+function vaultCreateSSHKey() {
+  window.electron.ipcRendererVault
+    .createSSHKey('vault-create-ssh-key', 'test')
+    .then((result) => {
+      console.log(result);
+    });
+}
+
 export default function MainMenu() {
   const [authenticated, setAuthenticated] = useState(
     localStorage.getItem(localStorage.getItem('authenticated') || 'false')
@@ -317,6 +332,10 @@ export default function MainMenu() {
   }, []);
 
   console.log(systems);
+
+  vaultSSHTest();
+
+  vaultCreateSSHKey();
 
   if (systems.length > 0) {
     return (

@@ -364,6 +364,84 @@ ipcMain.handle('list-system-configs', async () => {
   }
 });
 
+// OCI Vault listeners
+// Create new SSH Key
+ipcMain.handle('vault-create-ssh-key', async (event, arg) => {
+  console.log('vault-create-ssh-key received');
+  try {
+    const key = await ociConnectAdmin.createSSHKey(arg);
+    console.log('Key created in OCI: ', key);
+    return key;
+  } catch (error) {
+    console.log(
+      'Exception in vault-create-ssh-key icpMain handler in main.ts file: ',
+      error
+    );
+    return { success: 'false', error };
+  }
+});
+
+ipcMain.handle('vault-import-ssh-key', async (event, arg) => {
+  console.log('vault-import-ssh-key received');
+  try {
+    const key = await ociConnectAdmin.importSSHKey(arg);
+    console.log('Key imported in OCI: ', key);
+    return key;
+  } catch (error) {
+    console.log(
+      'Exception in vault-import-ssh-key icpMain handler in main.ts file: ',
+      error
+    );
+    return { success: 'false', error };
+  }
+});
+
+// List SSH Keys
+ipcMain.handle('vault-list-ssh-keys', async () => {
+  console.log('vault-list-ssh-keys received');
+  try {
+    const keys = await ociConnectAdmin.listSSHKeys();
+    console.log('Keys received from OCI: ', keys);
+    return keys;
+  } catch (error) {
+    console.log(
+      'Exception in vault-list-ssh-keys icpMain handler in main.ts file: ',
+      error
+    );
+    return { success: 'false', error };
+  }
+});
+
+ipcMain.handle('vault-get-ssh-key', async (event, arg) => {
+  console.log('vault-get-ssh-key received');
+  try {
+    const key = await ociConnectAdmin.getSSHKey(arg);
+    console.log('Key received from OCI: ', key);
+    return key;
+  } catch (error) {
+    console.log(
+      'Exception in vault-get-ssh-key icpMain handler in main.ts file: ',
+      error
+    );
+    return { success: 'false', error };
+  }
+});
+
+ipcMain.handle('vault-export-ssh-key', async (event, arg) => {
+  console.log('vault-export-ssh-key received');
+  try {
+    const key = await ociConnectAdmin.exportSSHKey(arg);
+    console.log('Key received from OCI: ', key);
+    return key;
+  } catch (error) {
+    console.log(
+      'Exception in vault-export-ssh-key icpMain handler in main.ts file: ',
+      error
+    );
+    return { success: 'false', error };
+  }
+});
+
 ipcMain.handle('logout', async (event, arg) => {
   console.log('logout received');
 

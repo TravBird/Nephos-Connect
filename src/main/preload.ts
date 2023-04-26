@@ -47,6 +47,28 @@ const electronHandler = {
       return result;
     },
   },
+  ipcRendererVault: {
+    async createSSHKey(channel: 'vault-create-ssh-key', request: any) {
+      const result = await ipcRenderer.invoke(channel, request);
+      return result;
+    },
+    async importSSHKey(channel: 'vault-import-ssh-key', request: any) {
+      const result = await ipcRenderer.invoke(channel, request);
+      return result;
+    },
+    async listSSHKeys(channel: 'vault-list-ssh-keys') {
+      const result = await ipcRenderer.invoke(channel);
+      return result;
+    },
+    async getSSHKey(channel: 'vault-get-ssh-key', request: any) {
+      const result = await ipcRenderer.invoke(channel, request);
+      return result;
+    },
+    async exportSSHKey(channel: 'vault-export-ssh-key', request: any) {
+      const result = await ipcRenderer.invoke(channel, request);
+      return result;
+    },
+  },
   ipcRendererSetup: {
     async setupLocal(channel: 'setup-local') {
       const result = await ipcRenderer.invoke(channel);

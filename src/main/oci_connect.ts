@@ -22,7 +22,7 @@ export class OCIConnect {
 
   keyClient: keyManagement.KmsManagementClient;
 
-  keyCyrptoClient: keyManagement.KmsCryptoClient;
+  keyCryptoClient: keyManagement.KmsCryptoClient;
 
   profileName: string;
 
@@ -56,12 +56,18 @@ export class OCIConnect {
       authenticationDetailsProvider: provider,
     });
 
+    console.log(provider);
+
+    provider.getRegion();
+    const newProvider = provider;
+    newProvider.setRegion('us-ashburn-1');
+
     this.keyClient = new keyManagement.KmsManagementClient({
-      authenticationDetailsProvider: provider,
+      authenticationDetailsProvider: newProvider,
     });
 
-    this.keyCyrptoClient = new keyManagement.KmsCryptoClient({
-      authenticationDetailsProvider: provider,
+    this.keyCryptoClient = new keyManagement.KmsCryptoClient({
+      authenticationDetailsProvider: newProvider,
     });
   }
 
@@ -178,7 +184,7 @@ export class OCIConnect {
     }
   }
 
-  // SSH Key functions
+  // Oracle Vault functions
   async createSSHKey(
     compartmentId: string,
     displayName: string,
@@ -238,7 +244,8 @@ export class OCIConnect {
   async listSSHKeys(): Promise<keyManagement.models.KeySummary[]> {
     try {
       const request: keyManagement.requests.ListKeysRequest = {
-        compartmentId: this.userCompartment,
+        compartmentId:
+          'ocid1.compartment.oc1..aaaaaaaa3dfdzabug5l5ymsmgctlnabppmn2umgloy5uja2ppwr2m4aqe6wq',
       };
 
       const response = await this.keyClient.listKeys(request);
@@ -261,7 +268,7 @@ export class OCIConnect {
         keyId,
       };
 
-      const response = await this.keyClient.exportKey(request);
+      const response = await this.keyClient.getKey(request);
       console.log(
         'Response recieved from get key: ',
         response,
@@ -288,7 +295,7 @@ export class OCIConnect {
         },
       };
 
-      const response = await this.keyCyrptoClient.exportKey(request);
+      const response = await this.keyCryptoClient.exportKey(request);
       console.log(
         'Response recieved from export key: ',
         response,
