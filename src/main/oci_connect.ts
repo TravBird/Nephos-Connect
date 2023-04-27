@@ -6,9 +6,11 @@ import * as keyManagement from 'oci-keymanagement';
 import * as responses from 'oci-core/lib/response';
 import * as fs from 'fs';
 import os from 'os';
-import { createPublicKey } from 'crypto';
+import { KeyObject, createPublicKey } from 'crypto';
 
 const crypto = require('crypto');
+
+const { subtle, cryptoKey } = require('crypto').webcrypto;
 
 const filePath = `${os.homedir()}/.oci/config`;
 const keyPath = `${os.homedir()}/.oci/keys/`;
@@ -185,41 +187,17 @@ export class OCIConnect {
   }
 
   // Oracle Vault functions
-  async createSSHKey(
-    compartmentId: string,
-    displayName: string,
-    keyShape: keyManagement.models.KeyShape
-  ): Promise<keyManagement.models.CreateKeyDetails> {
-    try {
-      const request: keyManagement.requests.CreateKeyRequest = {
-        createKeyDetails: {
-          compartmentId,
-          displayName,
-          keyShape,
-        },
-      };
-
-      const response = await this.keyClient.createKey(request);
-
-      console.log(
-        'Response recieved from create key: ',
-        response,
-        '. Response Ended.'
-      );
-      return response;
-    } catch (e) {
-      console.log('Error in createSSHKey ', e);
-      throw e;
-    }
-  }
-
   async importSSHKey(
     compartmentId: string,
     displayName: string,
-    keyShape: keyManagement.models.KeyShape,
     wrappedImportKey: keyManagement.models.WrappedImportKey
   ): Promise<keyManagement.models.ImportKeyDetails> {
     try {
+      const keyShape = {
+        algorithm: keyManagement.models.KeyShape.Algorithm.Rsa,
+        length: 4096,
+      };
+
       const request: keyManagement.requests.ImportKeyRequest = {
         importKeyDetails: {
           compartmentId,
@@ -283,19 +261,25 @@ export class OCIConnect {
 
   async exportSSHKey(
     keyId: string,
-    algorithm: keyManagement.models.ExportKeyDetails.Algorithm,
     publicKey: string
   ): Promise<keyManagement.models.ExportedKeyData> {
     try {
+      const algorithm =
+        keyManagement.models.ExportKeyDetails.Algorithm.RsaOaepAesSha256;
       const request: keyManagement.requests.ExportKeyRequest = {
         exportKeyDetails: {
-          keyId,
+          keyId:
+            'ocid1.key.oc1.uk-london-1.d5seppcnaaggq.abwgiljtmrijn5vv3y2snqhccdd262zdyrkxt7tip66ozmtyfucrk7m2jafq',
           algorithm,
           publicKey,
         },
       };
 
       const response = await this.keyCryptoClient.exportKey(request);
+
+      response.exportedKeyData;
+
+      const key = keyManagement.models.WrappedImportKey;
       console.log(
         'Response recieved from export key: ',
         response,
@@ -626,4 +610,70 @@ export async function GenerateKeys() {
       }
     );
   });
+}
+
+export async function DecryptWrappedKey(privateKey, encryptedKey) {
+  // Decode the encoded wrapped data and convert it to hexadecimal format.
+  const buf = Buffer.from(encryptedKey, 'base64');
+  const bufString = buf.toString('hex');
+
+  // Extract the wrapped temporary AES key. (The length of this first portion of the wrapped data is equal to the
+  // length of the private RSA wrapping key.) -512 Bytes/1024 characters
+  const wrappedAESKey = bufString.substring(0, 1024);
+
+  // Extract the wrapped target key. (This second portion of the wrapped data is the software-protected master encryption key.)  /
+  const wrappedTargetKey = bufString.substring(1024);
+
+  // Decrypt the wrapped temporary AES key using the private RSA wrapping key.
+  const decryptedAESKey = crypto.privateDecrypt(
+    {
+      key: privateKey,
+      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+      oaepHash: 'sha256',
+    },
+    Buffer.from(wrappedAESKey, 'hex')
+  );
+
+  // Decrypt the wrapped target key using the temporary AES key.
+  const decipher = crypto.createDecipheriv(
+    'aes-256-cbc',
+    decryptedAESKey,
+    Buffer.alloc(16, 0)
+  );
+  const decryptedTargetKey = decipher.update(
+    Buffer.from(wrappedTargetKey, 'hex')
+  );
+  const targetKeyStrig = decryptedTargetKey.toString('hex');
+  return targetKeyStrig;
+}
+
+export async function WrapKey(publicKey: string, targetKey: string) {
+  // Generate a random temporary AES key.
+  const aesKey = crypto.randomBytes(32);
+
+  // Encrypt the target key using the temporary AES key.
+  const cipher = crypto.createCipheriv(
+    'aes-256-cbc',
+    aesKey,
+    Buffer.alloc(16, 0)
+  );
+  const encryptedTargetKey = cipher.update(targetKey);
+
+  // Encrypt the temporary AES key using the public RSA wrapping key.
+  const encryptedAESKey = crypto.publicEncrypt(
+    {
+      key: publicKey,
+      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+      oaepHash: 'sha256',
+    },
+    aesKey
+  );
+
+  // Concatenate the encrypted temporary AES key and the encrypted target key.
+  const wrappedKey = Buffer.concat([encryptedAESKey, encryptedTargetKey]);
+
+  // Encode the wrapped data using base64.
+  const wrappedKeyBase64 = wrappedKey.toString('base64');
+
+  return wrappedKeyBase64;
 }

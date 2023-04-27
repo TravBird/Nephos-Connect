@@ -13,6 +13,7 @@ import log from 'electron-log';
 import jwt_decode from 'jwt-decode';
 import os from 'os';
 import fs from 'fs';
+import { generateKey } from 'crypto';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import IDCSAuth from './idcs_auth';
@@ -21,6 +22,8 @@ import {
   CreateProfile,
   PofileExists,
   GenerateKeys,
+  DecryptWrappedKey,
+  WrapKey,
 } from './oci_connect';
 
 const wifi = require('node-wifi');
@@ -366,12 +369,23 @@ ipcMain.handle('list-system-configs', async () => {
 
 // OCI Vault listeners
 // Create new SSH Key
-ipcMain.handle('vault-create-ssh-key', async (event, arg) => {
+ipcMain.handle('vault-create-ssh-key', async (event, [compartmentId, displayName]) => {
   console.log('vault-create-ssh-key received');
   try {
-    const key = await ociConnectAdmin.createSSHKey(arg);
-    console.log('Key created in OCI: ', key);
-    return key;
+    // generate key pair
+    const { publicKey, privateKey, fingerprint } = await GenerateKeys();
+
+    // wrap private key in preparation for upload to OCI Vault
+    const wrappedPrivateKey = await WrapKey(publicKey, privateKey);
+
+    // upload wrapped private key and public key to OCI Vault
+    const response = await ociConnectAdmin.importSSHKey(
+      compartmentId,
+      displayName,
+      { keyMaterial: wrappedPrivateKey, wrappingAlgorithm: 'RSA_OAEP_AES_SHA256' }
+    );
+    console.log('Key imported in OCI: ', response);
+    return response;
   } catch (error) {
     console.log(
       'Exception in vault-create-ssh-key icpMain handler in main.ts file: ',
@@ -381,20 +395,29 @@ ipcMain.handle('vault-create-ssh-key', async (event, arg) => {
   }
 });
 
-ipcMain.handle('vault-import-ssh-key', async (event, arg) => {
-  console.log('vault-import-ssh-key received');
-  try {
-    const key = await ociConnectAdmin.importSSHKey(arg);
-    console.log('Key imported in OCI: ', key);
-    return key;
-  } catch (error) {
-    console.log(
-      'Exception in vault-import-ssh-key icpMain handler in main.ts file: ',
-      error
-    );
-    return { success: 'false', error };
+ipcMain.handle(
+  'vault-import-ssh-key',
+  async (event, [compartmentId, displayName, wrappedImportKey]) => {
+    console.log('vault-import-ssh-key received');
+
+    const wrappedKey =
+    try {
+      const key = await ociConnectAdmin.importSSHKey(
+        compartmentId,
+        displayName,
+        wrappedImportKey
+      );
+      console.log('Key imported in OCI: ', key);
+      return key;
+    } catch (error) {
+      console.log(
+        'Exception in vault-import-ssh-key icpMain handler in main.ts file: ',
+        error
+      );
+      return { success: 'false', error };
+    }
   }
-});
+);
 
 // List SSH Keys
 ipcMain.handle('vault-list-ssh-keys', async () => {
@@ -412,10 +435,10 @@ ipcMain.handle('vault-list-ssh-keys', async () => {
   }
 });
 
-ipcMain.handle('vault-get-ssh-key', async (event, arg) => {
+ipcMain.handle('vault-get-ssh-key', async (event, keyId: string) => {
   console.log('vault-get-ssh-key received');
   try {
-    const key = await ociConnectAdmin.getSSHKey(arg);
+    const key = await ociConnectAdmin.getSSHKey(keyId);
     console.log('Key received from OCI: ', key);
     return key;
   } catch (error) {
@@ -427,12 +450,17 @@ ipcMain.handle('vault-get-ssh-key', async (event, arg) => {
   }
 });
 
-ipcMain.handle('vault-export-ssh-key', async (event, arg) => {
+ipcMain.handle('vault-export-ssh-key', async (event, keyId: string) => {
+  const { publicKey, privateKey, fingerprint } = await GenerateKeys();
   console.log('vault-export-ssh-key received');
   try {
-    const key = await ociConnectAdmin.exportSSHKey(arg);
-    console.log('Key received from OCI: ', key);
-    return key;
+    const key = await ociConnectAdmin.exportSSHKey(keyId, publicKey);
+    console.log('Key received from OCI: ', key.encryptedKey);
+    //const decryptedSSHKey = await DecryptKey(privateKey, key.encryptedKey);
+
+    const decryptedSSHKey = DecryptWrappedKey(privateKey, key.encryptedKey);
+    console.log('Decrypted SSH Key: ', decryptedSSHKey);
+    return decryptedSSHKey;
   } catch (error) {
     console.log(
       'Exception in vault-export-ssh-key icpMain handler in main.ts file: ',
@@ -442,7 +470,7 @@ ipcMain.handle('vault-export-ssh-key', async (event, arg) => {
   }
 });
 
-ipcMain.handle('logout', async (event, arg) => {
+ipcMain.handle('logout', async () => {
   console.log('logout received');
 
   authWindow = null;
@@ -452,7 +480,7 @@ ipcMain.handle('logout', async (event, arg) => {
 });
 
 // WiFi listeners
-ipcMain.handle('get-wifi-networks', async (event, arg) => {
+ipcMain.handle('get-wifi-networks', async () => {
   console.log('get-wifi-networks received');
 
   try {
@@ -544,7 +572,6 @@ const createWindow = async () => {
       mainWindow.minimize();
     } else {
       mainWindow.show();
-      splash?.destroy();
     }
   });
 

@@ -296,12 +296,14 @@ function LogoutButton() {
   );
 }
 
-function vaultSSHTest() {
+function vaultListSSHKeys() {
   window.electron.ipcRendererVault
     .listSSHKeys('vault-list-ssh-keys')
     .then((result) => {
       console.log(result);
-    });
+      return result;
+    })
+    .catch((err) => console.log(err));
 }
 
 function vaultCreateSSHKey() {
@@ -309,7 +311,19 @@ function vaultCreateSSHKey() {
     .createSSHKey('vault-create-ssh-key', 'test')
     .then((result) => {
       console.log(result);
-    });
+      return result;
+    })
+    .catch((err) => console.log(err));
+}
+
+function vaultExportSSHKey(keyId: string) {
+  window.electron.ipcRendererVault
+    .exportSSHKey('vault-export-ssh-key', keyId)
+    .then((result) => {
+      console.log(result);
+      return result;
+    })
+    .catch((err) => console.log(err));
 }
 
 export default function MainMenu() {
@@ -333,9 +347,11 @@ export default function MainMenu() {
 
   console.log(systems);
 
-  vaultSSHTest();
+  vaultListSSHKeys();
 
-  vaultCreateSSHKey();
+  // vaultCreateSSHKey();
+
+  vaultExportSSHKey('Test');
 
   if (systems.length > 0) {
     return (

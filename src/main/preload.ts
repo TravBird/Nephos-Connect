@@ -48,8 +48,15 @@ const electronHandler = {
     },
   },
   ipcRendererVault: {
-    async createSSHKey(channel: 'vault-create-ssh-key', request: any) {
-      const result = await ipcRenderer.invoke(channel, request);
+    async createSSHKey(
+      channel: 'vault-create-ssh-key',
+      compartmentID: string,
+      keyName: string
+    ) {
+      const result = await ipcRenderer.invoke(channel, [
+        compartmentID,
+        keyName,
+      ]);
       return result;
     },
     async importSSHKey(channel: 'vault-import-ssh-key', request: any) {
