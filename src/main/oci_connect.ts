@@ -188,14 +188,15 @@ export class OCIConnect {
 
   // Oracle Vault functions
   async importSSHKey(
-    compartmentId: string,
     displayName: string,
-    wrappedImportKey: keyManagement.models.WrappedImportKey
+    wrappedImportKey: any
   ): Promise<keyManagement.models.ImportKeyDetails> {
+    const compartmentId =
+      'ocid1.compartment.oc1..aaaaaaaa3dfdzabug5l5ymsmgctlnabppmn2umgloy5uja2ppwr2m4aqe6wq';
     try {
       const keyShape = {
         algorithm: keyManagement.models.KeyShape.Algorithm.Rsa,
-        length: 4096,
+        length: 512,
       };
 
       const request: keyManagement.requests.ImportKeyRequest = {
@@ -292,11 +293,37 @@ export class OCIConnect {
     }
   }
 
+  // get Wrapping key
+  async getWrappingKey(): Promise<keyManagement.models.WrappingKey> {
+    try {
+      const request: keyManagement.requests.GetWrappingKeyRequest = {};
+
+      const response = await this.keyClient.getWrappingKey(request);
+
+      console.log(
+        'Response recieved from get wrapping key: ',
+        response,
+        '. Response Ended.'
+      );
+      return response.wrappingKey;
+    } catch (e) {
+      console.log('Error in getWrappingKey ', e);
+      throw e;
+    }
+  }
+
   // Instance configuration functions
   // getting list of all instance configs
   async listInstanceConfigurations(): Promise<
     core.models.InstanceConfigurationSummary[]
   > {
+    /**
+     * Get the list of all instance configurations for the given compartment id.
+     *
+     * @param compartmentId: string
+     * @return instanceConfigurations: core.models.InstanceConfigurationSummary[]
+     *
+     */
     try {
       // creating request object
       const request: core.requests.ListInstanceConfigurationsRequest = {
@@ -319,12 +346,27 @@ export class OCIConnect {
     }
   }
 
-  async getInstanceConfig(selectedConfig) {
+  async getInstanceConfig(
+    configId: string
+  ): Promise<core.models.InstanceConfiguration> {
+    /**
+     * Get the instance configuration details for the given instance configuration id.
+     *
+     * @param configId - The OCID of the instance configuration.
+     * @return instanceConfiguration - The instance configuration details.
+     * @throws Exception
+     *
+     * Example:
+     *  const instanceConfiguration = await getInstanceConfig(configId);
+     *
+     * console.log('Instance Configuration Details: ', instanceConfiguration);
+     *
+     */
     try {
       // Create a request and dependent object(s).
       const getInstanceConfigurationRequest: core.requests.GetInstanceConfigurationRequest =
         {
-          instanceConfigurationId: selectedConfig,
+          instanceConfigurationId: configId,
         };
 
       // Send request to the Client.
@@ -332,22 +374,30 @@ export class OCIConnect {
         await this.clientManagement.getInstanceConfiguration(
           getInstanceConfigurationRequest
         );
-      return getInstanceConfigurationResponse;
+      return getInstanceConfigurationResponse.instanceConfiguration;
     } catch (error) {
       console.log(`getInstanceConfiguration Failed with error  ${error}`);
       throw error;
     }
   }
 
-  async launchInstanceFromConfig(details): Promise<core.models.Instance> {
+  async launchInstanceFromConfig(
+    instanceConfigurationId: string,
+    publicKey: string
+  ): Promise<core.models.Instance> {
     try {
-      // log the details
-      console.log(details);
-      const instanceDetails = await this.getInstanceConfig(details.config.id);
+      const instanceConfig = await this.getInstanceConfig(
+        instanceConfigurationId
+      );
 
-      console.log(instanceDetails);
+      const { instanceDetails } = instanceConfig;
+
+      instanceConfig.instanceDetails.launchDetails.metadata = {
+        ssh_authorized_keys: `ssh-rsa ${publicKey}`,
+      };
+
       const request: core.requests.LaunchInstanceConfigurationRequest = {
-        instanceConfigurationId: details.config.id,
+        instanceConfigurationId,
         instanceConfiguration: instanceDetails,
       };
 
@@ -507,33 +557,6 @@ export class OCIConnect {
       throw error;
     }
   }
-
-  // Create a new policy
-  async createPolicy() {
-    try {
-      const policyName = this.profileName;
-      const policy: identity.models.CreatePolicyDetails = {
-        compartmentId:
-          'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
-        name: policyName,
-        description: `Nephos generated policy for ${policyName}`,
-        statements: [
-          {
-            actions: ['*'],
-            resources: ['*'],
-          },
-        ],
-      };
-      const request: identity.requests.CreatePolicyRequest = {
-        createPolicyDetails: policy,
-      };
-      const response = await this.identityClient.createPolicy(request);
-      return response;
-    } catch (error) {
-      console.log('Error in createPolicy ', error);
-      throw error;
-    }
-  }
 }
 
 // Creates a new local profile in the config file
@@ -647,33 +670,53 @@ export async function DecryptWrappedKey(privateKey, encryptedKey) {
   return targetKeyStrig;
 }
 
-export async function WrapKey(publicKey: string, targetKey: string) {
+export async function WrapKey(wrappingKey: string, targetKey: string) {
   // Generate a random temporary AES key.
   const aesKey = crypto.randomBytes(32);
 
-  // Encrypt the target key using the temporary AES key.
-  const cipher = crypto.createCipheriv(
-    'aes-256-cbc',
-    aesKey,
-    Buffer.alloc(16, 0)
-  );
-  const encryptedTargetKey = cipher.update(targetKey);
-
-  // Encrypt the temporary AES key using the public RSA wrapping key.
-  const encryptedAESKey = crypto.publicEncrypt(
+  // Wrap temporary AES key using the public RSA wrapping key.
+  const wrappedAESKey = crypto.publicEncrypt(
     {
-      key: publicKey,
+      key: wrappingKey,
       padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
       oaepHash: 'sha256',
     },
     aesKey
   );
 
-  // Concatenate the encrypted temporary AES key and the encrypted target key.
-  const wrappedKey = Buffer.concat([encryptedAESKey, encryptedTargetKey]);
+  // Generate hex of tempory AES key
+  // const aesKeyHex = aesKey.toString('hex');
+  const aesKeyHex = Buffer.from(aesKey.toString('hex'), 'hex');
 
-  // Encode the wrapped data using base64.
+  console.log('AES Key: ', aesKeyHex);
+
+  // Convert PEM private key to DER format
+  const keyObject = crypto.createPrivateKey(targetKey);
+
+  console.log(
+    'Target Key: ',
+    keyObject.export({ type: 'pkcs8', format: 'der' })
+  );
+
+  // Wrap target key using the temporary AES key.
+  const cipher = crypto.createCipheriv(
+    'aes-256-cbc',
+    aesKeyHex,
+    Buffer.alloc(16, 0)
+  );
+  const encryptedTargetKey = cipher.update(
+    keyObject.export({ type: 'pkcs8', format: 'der' })
+  );
+
+  console.log('Encrypted target key: ', encryptedTargetKey);
+  console.log('RSA Key Length: ', wrappedAESKey.length);
+  // Concatenate the encrypted temporary AES key and the encrypted target key.
+  const wrappedKey = Buffer.concat([wrappedAESKey, encryptedTargetKey]);
+
+  // Encode the wrapped data in base64 format.
   const wrappedKeyBase64 = wrappedKey.toString('base64');
+
+  console.log('Wrapped key: ', wrappedKeyBase64);
 
   return wrappedKeyBase64;
 }

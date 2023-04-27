@@ -42,8 +42,15 @@ const electronHandler = {
       const result = await ipcRenderer.invoke(channel);
       return result;
     },
-    async createSystem(channel: 'create-system', request: any) {
-      const result = await ipcRenderer.invoke(channel, request);
+    async createSystem(
+      channel: 'create-system',
+      compartmentID: string,
+      displayName: string
+    ) {
+      const result = await ipcRenderer.invoke(channel, {
+        compartmentID,
+        displayName,
+      });
       return result;
     },
   },
@@ -57,18 +64,6 @@ const electronHandler = {
         compartmentID,
         keyName,
       ]);
-      return result;
-    },
-    async importSSHKey(channel: 'vault-import-ssh-key', request: any) {
-      const result = await ipcRenderer.invoke(channel, request);
-      return result;
-    },
-    async listSSHKeys(channel: 'vault-list-ssh-keys') {
-      const result = await ipcRenderer.invoke(channel);
-      return result;
-    },
-    async getSSHKey(channel: 'vault-get-ssh-key', request: any) {
-      const result = await ipcRenderer.invoke(channel, request);
       return result;
     },
     async exportSSHKey(channel: 'vault-export-ssh-key', request: any) {

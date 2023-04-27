@@ -316,10 +316,52 @@ ipcMain.handle('oci-register-sso', async () => {
 // OCI Request
 // OCI System listeners
 // Create new system
-ipcMain.handle('create-system', async (event, arg) => {
-  console.log('create-system received');
-  return ociConnectUser?.launchInstanceFromConfig(arg);
-});
+ipcMain.handle(
+  'create-system',
+  async (event, { instanceConfigurationId, displayName }) => {
+    console.log('create-system received');
+
+    try {
+      // generate key pair
+      const { publicKey, privateKey, fingerprint } = await GenerateKeys();
+
+      // get wrapping key from OCI Vault
+      const wrappingKey = await ociConnectAdmin.getWrappingKey();
+
+      // wrap private key in preparation for upload to OCI Vault
+      const wrappedPrivateKey = await WrapKey(
+        wrappingKey.publicKey,
+        privateKey
+      );
+
+      const userName = ociConnectUser?.getProfileName();
+
+      const keyName = `${userName}-${displayName}`.replace(
+        /[^a-zA-Z0-9 ]/g,
+        ''
+      );
+
+      console.log(keyName);
+
+      // upload wrapped private key and public key to OCI Vault
+      const response = await ociConnectAdmin.importSSHKey(keyName, {
+        keyMaterial: wrappedPrivateKey,
+        wrappingAlgorithm: 'RSA_OAEP_AES_SHA256',
+      });
+      console.log('Key uploaded to OCI Vault: ', response);
+
+      const system = await ociConnectUser?.launchInstanceFromConfig(
+        instanceConfigurationId,
+        publicKey
+      );
+
+      return { success: 'true', system };
+    } catch (error) {
+      console.log('Error creating system: ', error);
+      return { success: 'false' };
+    }
+  }
+);
 // start and stop OCI VM System
 ipcMain.handle('start-system', async (event, arg) => {
   console.log('start-system received');
@@ -369,55 +411,61 @@ ipcMain.handle('list-system-configs', async () => {
 
 // OCI Vault listeners
 // Create new SSH Key
-ipcMain.handle('vault-create-ssh-key', async (event, [compartmentId, displayName]) => {
-  console.log('vault-create-ssh-key received');
-  try {
-    // generate key pair
-    const { publicKey, privateKey, fingerprint } = await GenerateKeys();
-
-    // wrap private key in preparation for upload to OCI Vault
-    const wrappedPrivateKey = await WrapKey(publicKey, privateKey);
-
-    // upload wrapped private key and public key to OCI Vault
-    const response = await ociConnectAdmin.importSSHKey(
-      compartmentId,
-      displayName,
-      { keyMaterial: wrappedPrivateKey, wrappingAlgorithm: 'RSA_OAEP_AES_SHA256' }
-    );
-    console.log('Key imported in OCI: ', response);
-    return response;
-  } catch (error) {
-    console.log(
-      'Exception in vault-create-ssh-key icpMain handler in main.ts file: ',
-      error
-    );
-    return { success: 'false', error };
-  }
-});
-
 ipcMain.handle(
-  'vault-import-ssh-key',
-  async (event, [compartmentId, displayName, wrappedImportKey]) => {
-    console.log('vault-import-ssh-key received');
-
-    const wrappedKey =
+  'vault-create-ssh-key',
+  async (event, [compartmentId, displayName]) => {
+    console.log('vault-create-ssh-key received');
     try {
-      const key = await ociConnectAdmin.importSSHKey(
+      // generate key pair
+      const { publicKey, privateKey, fingerprint } = await GenerateKeys();
+
+      // wrap private key in preparation for upload to OCI Vault
+      const wrappedPrivateKey = await WrapKey(publicKey, privateKey);
+
+      // upload wrapped private key and public key to OCI Vault
+      const response = await ociConnectAdmin.importSSHKey(
         compartmentId,
         displayName,
-        wrappedImportKey
+        {
+          keyMaterial: wrappedPrivateKey,
+          wrappingAlgorithm: 'RSA_OAEP_AES_SHA256',
+        }
       );
-      console.log('Key imported in OCI: ', key);
-      return key;
+
+      console.log('Key uploaded to OCI Vault: ', response);
+
+      // return public key to be used to create new instance
+      return { success: 'true', publicKey };
     } catch (error) {
       console.log(
-        'Exception in vault-import-ssh-key icpMain handler in main.ts file: ',
+        'Exception in vault-create-ssh-key icpMain handler in main.ts file: ',
         error
       );
       return { success: 'false', error };
     }
   }
 );
+
+// Get SSH Key from OCI Vault
+ipcMain.handle('vault-export-ssh-key', async (event, keyId: string) => {
+  const { publicKey, privateKey, fingerprint } = await GenerateKeys();
+  console.log('vault-export-ssh-key received');
+  try {
+    const key = await ociConnectAdmin.exportSSHKey(keyId, publicKey);
+    console.log('Key received from OCI: ', key.encryptedKey);
+    // const decryptedSSHKey = await DecryptKey(privateKey, key.encryptedKey);
+
+    const decryptedSSHKey = DecryptWrappedKey(privateKey, key.encryptedKey);
+    console.log('Decrypted SSH Key: ', decryptedSSHKey);
+    return decryptedSSHKey;
+  } catch (error) {
+    console.log(
+      'Exception in vault-export-ssh-key icpMain handler in main.ts file: ',
+      error
+    );
+    return { success: 'false', error };
+  }
+});
 
 // List SSH Keys
 ipcMain.handle('vault-list-ssh-keys', async () => {
@@ -444,26 +492,6 @@ ipcMain.handle('vault-get-ssh-key', async (event, keyId: string) => {
   } catch (error) {
     console.log(
       'Exception in vault-get-ssh-key icpMain handler in main.ts file: ',
-      error
-    );
-    return { success: 'false', error };
-  }
-});
-
-ipcMain.handle('vault-export-ssh-key', async (event, keyId: string) => {
-  const { publicKey, privateKey, fingerprint } = await GenerateKeys();
-  console.log('vault-export-ssh-key received');
-  try {
-    const key = await ociConnectAdmin.exportSSHKey(keyId, publicKey);
-    console.log('Key received from OCI: ', key.encryptedKey);
-    //const decryptedSSHKey = await DecryptKey(privateKey, key.encryptedKey);
-
-    const decryptedSSHKey = DecryptWrappedKey(privateKey, key.encryptedKey);
-    console.log('Decrypted SSH Key: ', decryptedSSHKey);
-    return decryptedSSHKey;
-  } catch (error) {
-    console.log(
-      'Exception in vault-export-ssh-key icpMain handler in main.ts file: ',
       error
     );
     return { success: 'false', error };

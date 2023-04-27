@@ -3,7 +3,6 @@
 import { MemoryRouter as Router, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import './App.css';
-import startVM from './StartVM';
 
 function closeCreateSystemForm() {
   document.getElementById('CreateSystemForm').style.display = 'none';
@@ -31,19 +30,25 @@ function OpenSystemCreateButton() {
   );
 }
 
-function ListNewSystem({ config, selected, setSelected }) {
+function ListNewSystem({
+  config,
+  selectedNewSystem,
+  setSelectedNewSystem,
+}: any) {
   const [open, setOpen] = useState(false);
-
+  console.log(config);
+  console.log(selectedNewSystem);
+  const { id, displayName } = config;
   return (
-    <li className="ConfigInfo" key={config.displayName}>
+    <li className="ConfigInfo" key={config.id}>
       <div className="InitialInfo">
-        <span id={config.displayName}>
+        <span id={config.id}>
           <input
             type="radio"
-            checked={selected === config.displayName}
-            onChange={() => setSelected(config.displayName)}
+            checked={selectedNewSystem.id === config.id}
+            onChange={() => setSelectedNewSystem({ id, displayName })}
           />
-          {config.displayName}
+          {displayName}
         </span>
         <span>
           <button
@@ -60,10 +65,10 @@ function ListNewSystem({ config, selected, setSelected }) {
         <div className="AdditionalInfo">
           <h4>System Specs:</h4>
           <ul>
-            <li>Memory: {config.shapeConfig.memoryInGBs} GB</li>
-            <li>Storage: {config.shapeConfig.storageInGBs} GB</li>
-            <li>OCPUS: {config.shapeConfig.ocpus}</li>
-            <li>GPU: {config.shapeConfig.gpus}</li>
+            <li>Memory: GB</li>
+            <li>Storage: GB</li>
+            <li>OCPUS: </li>
+            <li>GPU: </li>
           </ul>
         </div>
       ) : null}
@@ -78,7 +83,7 @@ async function getSystemConfigs() {
   return result;
 }
 
-function NewSystemSelection({ selectedNewSystem, setSelectedNewSystem }) {
+function NewSystemSelection({ selectedNewSystem, setSelectedNewSystem }: any) {
   const [configs, setConfigs] = useState([]);
 
   useEffect(() => {
@@ -94,12 +99,40 @@ function NewSystemSelection({ selectedNewSystem, setSelectedNewSystem }) {
         {configs.map((config) => (
           <ListNewSystem
             config={config}
-            selected={selectedNewSystem}
-            setSelected={setSelectedNewSystem}
+            selectedNewSystem={selectedNewSystem}
+            setSelectedNewSystem={setSelectedNewSystem}
           />
         ))}
       </ul>
     </div>
+  );
+}
+
+// needs improving
+async function createSystemRequest(
+  instanceConfigurationId: string,
+  displayName: string
+) {
+  const result = await window.electron.ipcRendererOCI.createSystem(
+    'create-system',
+    instanceConfigurationId,
+    displayName
+  );
+  return result;
+}
+
+function CreateSystemButton({ selectedNewSystem }: any) {
+  console.log('Creaing system with id and display name: ');
+  const { id, displayName } = selectedNewSystem;
+  return (
+    <button
+      type="button"
+      onClick={() => createSystemRequest(id, displayName)}
+      // id={selected}
+      // disabled={awaiting}
+    >
+      Create Selected new System?
+    </button>
   );
 }
 
@@ -120,6 +153,9 @@ function CreateSystemForm({ selectedNewSystem, setSelectedNewSystem }) {
           selectedNewSystem={selectedNewSystem}
           setSelectedNewSystem={setSelectedNewSystem}
         />
+        {selectedNewSystem ? (
+          <CreateSystemButton selectedNewSystem={selectedNewSystem} />
+        ) : null}
       </div>
     </div>
   );
@@ -132,7 +168,7 @@ async function getUserSystems() {
   return result;
 }
 
-function ListSystem({ system, selected, setSelected }) {
+function ListSystem({ system, selected, setSelected }: any) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -142,7 +178,7 @@ function ListSystem({ system, selected, setSelected }) {
           <input
             type="radio"
             checked={selected === system.displayName}
-            onChange={() => setSelected(system.displayName)}
+            onChange={() => setSelected(system)}
           />
           {system.displayName}
         </span>
@@ -172,9 +208,7 @@ function ListSystem({ system, selected, setSelected }) {
   );
 }
 
-function SysSelection({ systems, selected, setSelected }) {
-  console.log(systems);
-  systems.map((system) => console.log(system.displayName));
+function SysSelection({ systems, selected, setSelected }: any) {
   return (
     <div id="User System Selection">
       <h1>Select your System below</h1>
@@ -190,27 +224,6 @@ function SysSelection({ systems, selected, setSelected }) {
     </div>
   );
 }
-
-const createSystemRequest = (
-  request: string,
-  setError: any,
-  setAwaiting: any
-) => {
-  setAwaiting(true);
-  startVM(request)
-    .then((result) => {
-      setAwaiting(false);
-      if (result === 'success') {
-        return true;
-      }
-      setError(true);
-      throw new Error('Error starting VM');
-    })
-    .catch((error) => {
-      setAwaiting(false);
-      setError(true);
-    });
-};
 
 const startSystemRequest = (
   request: string,
@@ -233,7 +246,7 @@ const startSystemRequest = (
     });
 };
 
-function StartSystemButton({ selected, awaiting, setAwaiting, setError }) {
+function StartSystemButton({ selected, awaiting, setAwaiting, setError }: any) {
   return (
     <button
       type="button"
@@ -242,28 +255,6 @@ function StartSystemButton({ selected, awaiting, setAwaiting, setError }) {
       disabled={awaiting}
     >
       Start {selected}?
-    </button>
-  );
-}
-
-function createSystem({ configs, selected, awaiting, setAwaiting, setError }) {
-  const items = configs;
-
-  // implement a for loop through configs
-  let selectedConfig = '';
-  for (let i = 0; i < items.length; i += 1) {
-    if (items[i].displayName === selected) {
-      selectedConfig = items[i];
-    }
-  }
-  return (
-    <button
-      type="button"
-      onClick={() => createSystemRequest(selectedConfig, setError, setAwaiting)}
-      id={selected}
-      disabled={awaiting}
-    >
-      Launch {selected}?
     </button>
   );
 }
@@ -296,9 +287,9 @@ function LogoutButton() {
   );
 }
 
-function vaultListSSHKeys() {
+async function vaultCreateSSHKey(comparmentId: string, keyName: string) {
   window.electron.ipcRendererVault
-    .listSSHKeys('vault-list-ssh-keys')
+    .createSSHKey('vault-create-ssh-key', comparmentId, keyName)
     .then((result) => {
       console.log(result);
       return result;
@@ -306,17 +297,7 @@ function vaultListSSHKeys() {
     .catch((err) => console.log(err));
 }
 
-function vaultCreateSSHKey() {
-  window.electron.ipcRendererVault
-    .createSSHKey('vault-create-ssh-key', 'test')
-    .then((result) => {
-      console.log(result);
-      return result;
-    })
-    .catch((err) => console.log(err));
-}
-
-function vaultExportSSHKey(keyId: string) {
+async function vaultExportSSHKey(keyId: string) {
   window.electron.ipcRendererVault
     .exportSSHKey('vault-export-ssh-key', keyId)
     .then((result) => {
@@ -332,7 +313,10 @@ export default function MainMenu() {
   );
   const [systems, setSystems] = useState([{}]);
   const [selected, setSelected] = useState('');
-  const [selectedNewSystem, setSelectedNewSystem] = useState('');
+  const [selectedNewSystem, setSelectedNewSystem] = useState({
+    id: '',
+    displayName: '',
+  });
   const [awaiting, setAwaiting] = useState(false);
   const [error, setError] = useState(false);
 
@@ -347,11 +331,13 @@ export default function MainMenu() {
 
   console.log(systems);
 
-  vaultListSSHKeys();
+  // vaultListSSHKeys();
 
-  // vaultCreateSSHKey();
+  // const { privateKey, publicKey } = await vaultCreateSSHKey();
+  // console.log(privateKey);
+  // console.log(publicKey);
 
-  vaultExportSSHKey('Test');
+  // const exportKey = vaultExportSSHKey('Test');
 
   if (systems.length > 0) {
     return (
@@ -382,9 +368,8 @@ export default function MainMenu() {
     <div>
       <h2>You have no systems yet, create a new one here!</h2>
       <CreateSystemForm
-        configs={systems}
-        selected={selected}
-        setSelected={setSelected}
+        selectedNewSystem={selectedNewSystem}
+        setSelectedNewSystem={setSelectedNewSystem}
       />
       <OpenSystemCreateButton />
     </div>
