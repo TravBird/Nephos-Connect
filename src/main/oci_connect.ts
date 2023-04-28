@@ -189,7 +189,7 @@ export class OCIConnect {
   // Oracle Vault functions
   async importSSHKey(
     displayName: string,
-    wrappedImportKey: any
+    keyMaterial: any
   ): Promise<keyManagement.models.ImportKeyDetails> {
     const compartmentId =
       'ocid1.compartment.oc1..aaaaaaaa3dfdzabug5l5ymsmgctlnabppmn2umgloy5uja2ppwr2m4aqe6wq';
@@ -199,13 +199,22 @@ export class OCIConnect {
         length: 512,
       };
 
+      const wrappedImportKey = {
+        keyMaterial,
+        wrappingAlgorithm:
+          keyManagement.models.WrappedImportKey.WrappingAlgorithm
+            .RsaOaepAesSha256,
+      };
+
+      const importKeyDetails = {
+        compartmentId,
+        displayName,
+        keyShape,
+        wrappedImportKey,
+      };
+
       const request: keyManagement.requests.ImportKeyRequest = {
-        importKeyDetails: {
-          compartmentId,
-          displayName,
-          keyShape,
-          wrappedImportKey,
-        },
+        importKeyDetails,
       };
       const response = await this.keyClient.importKey(request);
       console.log(
@@ -670,53 +679,131 @@ export async function DecryptWrappedKey(privateKey, encryptedKey) {
   return targetKeyStrig;
 }
 
-export async function WrapKey(wrappingKey: string, targetKey: string) {
-  // Generate a random temporary AES key.
+export async function WrapKey2(wrappingPublicKey, targetKey) {
+  // Generate a temporary AES key:
   const aesKey = crypto.randomBytes(32);
 
-  // Wrap temporary AES key using the public RSA wrapping key.
+  // Wrap the temporary AES key with the public wrapping key using RSA-OAEP with SHA-256:
   const wrappedAESKey = crypto.publicEncrypt(
     {
-      key: wrappingKey,
+      key: wrappingPublicKey,
       padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
       oaepHash: 'sha256',
     },
     aesKey
   );
 
-  // Generate hex of tempory AES key
-  // const aesKeyHex = aesKey.toString('hex');
-  const aesKeyHex = Buffer.from(aesKey.toString('hex'), 'hex');
+  // Generate hexadecimal of the temporary AES key material:
+  const aesKeyString = aesKey.toString('hex');
 
-  console.log('AES Key: ', aesKeyHex);
+  // If the RSA private key you want to import is in PEM format, convert it to DER:
+  const privateKey = crypto.createPrivateKey(targetKey);
+  const exportedPrivateKey = privateKey.export({
+    type: 'pkcs8',
+    format: 'der',
+  });
 
-  // Convert PEM private key to DER format
-  const keyObject = crypto.createPrivateKey(targetKey);
+  // Wrap your RSA private key with the temporary AES key:
+  const cipher = crypto.createCipheriv(
+    'aes-256-cbc',
+    aesKey,
+    Buffer.alloc(16, 0)
+  );
+  const wrappedPrivateKey = cipher.update(exportedPrivateKey);
+  const wrappedPrivateKeyString = wrappedPrivateKey.toString('hex');
 
-  console.log(
-    'Target Key: ',
-    keyObject.export({ type: 'pkcs8', format: 'der' })
+  // Concatenate the wrapped temporary AES key and the wrapped RSA private key:
+  const wrappedKey = wrappedAESKey.toString('hex') + wrappedPrivateKeyString;
+
+  // Encode the concatenated wrapped data in base64:
+  const wrappedKeyBase64 = Buffer.from(wrappedKey, 'hex').toString('base64');
+
+  return wrappedKeyBase64;
+}
+
+export async function WrapKey(wrappingKey: string, targetKey: string) {
+  const targetKeyObject = crypto.createPrivateKey(targetKey);
+  const exportedTargetKey = targetKeyObject.export({
+    type: 'pkcs8',
+    format: 'der',
+  });
+  // import into cryptokey object
+  const cryptoTargetkey = await subtle.importKey(
+    'pkcs8',
+    exportedTargetKey,
+    {
+      name: 'RSA-OAEP',
+      hash: 'SHA-256',
+    },
+    true,
+    []
+  );
+
+  // import Wrapping key to Crypto key object
+  const wrappingKeyObject = crypto.createPublicKey(wrappingKey);
+  const exportedWrappingKey = wrappingKeyObject.export({
+    type: 'spki',
+    format: 'der',
+  });
+  const cryptoWrappingKey = await subtle.importKey(
+    'spki',
+    exportedWrappingKey,
+    {
+      name: 'RSA-OAEP',
+      hash: 'SHA-256',
+    },
+    true,
+    ['wrapKey']
+  );
+
+  // Generate a random temporary AES key.
+  const tempAESKey = await subtle.generateKey(
+    {
+      name: 'AES-GCM',
+      length: 256,
+    },
+    true,
+    ['wrapKey', 'unwrapKey']
+  );
+
+  // Wrap temporary AES key using the public RSA wrapping key.
+  const wrappedAESKey = await subtle.wrapKey(
+    'raw',
+    tempAESKey,
+    cryptoWrappingKey,
+    'RSA-OAEP'
   );
 
   // Wrap target key using the temporary AES key.
-  const cipher = crypto.createCipheriv(
-    'aes-256-cbc',
-    aesKeyHex,
-    Buffer.alloc(16, 0)
-  );
-  const encryptedTargetKey = cipher.update(
-    keyObject.export({ type: 'pkcs8', format: 'der' })
+
+  console.log(cryptoTargetkey);
+  console.log(tempAESKey);
+
+  const wrappedTargetKey = await subtle.wrapKey(
+    'pkcs8',
+    cryptoTargetkey,
+    tempAESKey,
+    {
+      name: 'AES-GCM',
+      iv: Buffer.alloc(16, 0),
+    }
   );
 
-  console.log('Encrypted target key: ', encryptedTargetKey);
-  console.log('RSA Key Length: ', wrappedAESKey.length);
+  console.log('Wrapped AES key: ', wrappedAESKey);
+  console.log('Wrapped target key: ', wrappedTargetKey);
+
   // Concatenate the encrypted temporary AES key and the encrypted target key.
-  const wrappedKey = Buffer.concat([wrappedAESKey, encryptedTargetKey]);
+  const wrappedKey = Buffer.concat([
+    Buffer.from(wrappedAESKey),
+    Buffer.from(wrappedTargetKey),
+  ]);
+
+  console.log('Wrapped key buffer: ', wrappedKey);
 
   // Encode the wrapped data in base64 format.
   const wrappedKeyBase64 = wrappedKey.toString('base64');
 
-  console.log('Wrapped key: ', wrappedKeyBase64);
+  console.log('Wrapped key base64: ', wrappedKeyBase64);
 
   return wrappedKeyBase64;
 }

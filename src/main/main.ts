@@ -24,6 +24,7 @@ import {
   GenerateKeys,
   DecryptWrappedKey,
   WrapKey,
+  WrapKey2,
 } from './oci_connect';
 
 const wifi = require('node-wifi');
@@ -53,6 +54,19 @@ ipcMain.handle('shutdown', () => {
   console.log('shutdown request received');
   shutdown.shutdown();
 });
+
+function launchVNCSoftware() {
+  // To be confirmed with NephOS path locaiton
+  const vncPath = path.join(
+    app.getAppPath(),
+    '..',
+    'resources',
+    'bin',
+    'vnc',
+    'vncviewer.exe'
+  );
+  shell.openPath(vncPath);
+}
 
 async function loginWindowChange(idcsAuth: IDCSAuth) {
   return new Promise((resolve) => {
@@ -329,7 +343,7 @@ ipcMain.handle(
       const wrappingKey = await ociConnectAdmin.getWrappingKey();
 
       // wrap private key in preparation for upload to OCI Vault
-      const wrappedPrivateKey = await WrapKey(
+      const wrappedPrivateKey = await WrapKey2(
         wrappingKey.publicKey,
         privateKey
       );
@@ -344,10 +358,10 @@ ipcMain.handle(
       console.log(keyName);
 
       // upload wrapped private key and public key to OCI Vault
-      const response = await ociConnectAdmin.importSSHKey(keyName, {
-        keyMaterial: wrappedPrivateKey,
-        wrappingAlgorithm: 'RSA_OAEP_AES_SHA256',
-      });
+      const response = await ociConnectAdmin.importSSHKey(
+        keyName,
+        wrappedPrivateKey
+      );
       console.log('Key uploaded to OCI Vault: ', response);
 
       const system = await ociConnectUser?.launchInstanceFromConfig(
