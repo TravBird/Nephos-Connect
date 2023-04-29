@@ -80,6 +80,7 @@ async function loginRequest(
             // attempting login again
             console.log('No additional setup required');
             setLoadingMessageState('Account setup complete! Logging you in');
+            await new Promise((f) => setTimeout(f, 10000));
             const postLocalSetupLoginResult =
               await window.electron.ipcRendererOCIauth.post_setup_login(
                 'post-setup-login',
@@ -89,7 +90,6 @@ async function loginRequest(
               // login successful
               console.log('Login successful');
               localStorage.setItem('authenticated', 'true');
-              await new Promise((f) => setTimeout(f, 10000));
               navigate('/home');
               return;
             }
@@ -123,6 +123,7 @@ async function loginRequest(
         // attempting login again
         console.log('No additional setup required');
         setLoadingMessageState('Account setup complete! Logging you in');
+        await new Promise((f) => setTimeout(f, 10000));
         const postSetupLoginResult =
           await window.electron.ipcRendererOCIauth.post_setup_login(
             'post-setup-login',
@@ -132,7 +133,6 @@ async function loginRequest(
           // login successful
           console.log('Login successful');
           localStorage.setItem('authenticated', 'true');
-          await new Promise((f) => setTimeout(f, 10000));
           navigate('/home');
           return;
         }

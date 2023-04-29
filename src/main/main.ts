@@ -271,6 +271,8 @@ ipcMain.handle('setup-local', async (event, name) => {
         setupRequired: 'false',
       };
     }
+    // need to create ociConnectUser here
+    ociConnectUser = new OCIConnect(newUserName);
     return {
       success: 'true',
       setupRequired: 'true',
