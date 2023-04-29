@@ -16,6 +16,25 @@ window.addEventListener('click', (event) => {
   }
 });
 
+function ErrorPopup({ message, setError }: any) {
+  return (
+    <div id="ErrorPopup">
+      <div className="ErrorPopupContent">
+        <span
+          className="CloseErrorPopup"
+          onClick={() => {
+            setError('');
+          }}
+        >
+          &times;
+        </span>
+        <h2>An error has occured!</h2>
+        <h3>{message}</h3>
+      </div>
+    </div>
+  );
+}
+
 function OpenSystemCreateButton() {
   return (
     <button
@@ -76,20 +95,24 @@ function ListNewSystem({
   );
 }
 
-async function getSystemConfigs() {
+async function getSystemConfigs(setError) {
   const result = await window.electron.ipcRendererOCI.listSystemConfigurations(
     'list-system-configs'
   );
   return result;
 }
 
-function NewSystemSelection({ selectedNewSystem, setSelectedNewSystem }: any) {
+function NewSystemSelection({
+  selectedNewSystem,
+  setSelectedNewSystem,
+  setError,
+}: any) {
   const [configs, setConfigs] = useState([]);
 
   useEffect(() => {
     async function fetchData() {
       // You can await here
-      setConfigs(await getSystemConfigs());
+      setConfigs(await getSystemConfigs(setError));
     }
     fetchData();
   }, []);
@@ -111,23 +134,32 @@ function NewSystemSelection({ selectedNewSystem, setSelectedNewSystem }: any) {
 // needs improving
 async function createSystemRequest(
   instanceConfigurationId: string,
-  displayName: string
+  displayName: string,
+  setError: any
 ) {
   const result = await window.electron.ipcRendererOCI.createSystem(
     'create-system',
     instanceConfigurationId,
     displayName
   );
+  console.log(result);
+  if (result.success === 'true') {
+    console.log('Successfully created system');
+    return result;
+  }
+  console.log('Failed to create system: ', result.message);
+  setError(result.message);
+
   return result;
 }
 
-function CreateSystemButton({ selectedNewSystem }: any) {
+function CreateSystemButton({ selectedNewSystem, setError }: any) {
   console.log('Creaing system with id and display name: ');
   const { id, displayName } = selectedNewSystem;
   return (
     <button
       type="button"
-      onClick={() => createSystemRequest(id, displayName)}
+      onClick={() => createSystemRequest(id, displayName, setError)}
       // id={selected}
       // disabled={awaiting}
     >
@@ -136,7 +168,11 @@ function CreateSystemButton({ selectedNewSystem }: any) {
   );
 }
 
-function CreateSystemForm({ selectedNewSystem, setSelectedNewSystem }) {
+function CreateSystemForm({
+  selectedNewSystem,
+  setSelectedNewSystem,
+  setError,
+}: any) {
   return (
     <div id="CreateSystemForm">
       <div className="CreateSystemFormContent">
@@ -154,7 +190,10 @@ function CreateSystemForm({ selectedNewSystem, setSelectedNewSystem }) {
           setSelectedNewSystem={setSelectedNewSystem}
         />
         {selectedNewSystem ? (
-          <CreateSystemButton selectedNewSystem={selectedNewSystem} />
+          <CreateSystemButton
+            selectedNewSystem={selectedNewSystem}
+            setError={setError}
+          />
         ) : null}
       </div>
     </div>
@@ -225,6 +264,7 @@ function SysSelection({ systems, selected, setSelected }: any) {
   );
 }
 
+// needs to be looked at
 const startSystemRequest = (
   request: string,
   setError: any,
@@ -238,7 +278,8 @@ const startSystemRequest = (
         return true;
       }
       setError(true);
-      throw new Error('Error starting VM');
+      setError(result);
+      return false;
     })
     .catch((error) => {
       setAwaiting(false);
@@ -259,7 +300,13 @@ function StartSystemButton({ selected, awaiting, setAwaiting, setError }: any) {
   );
 }
 
-function LogoutButton() {
+function LogoutButton(
+  setError,
+  setSystems,
+  setSelected,
+  setSelectedNewSystem,
+  setAwaiting
+) {
   const navigate = useNavigate();
   return (
     <button
@@ -277,9 +324,17 @@ function LogoutButton() {
               return navigate('/');
             }
             console.log('Logout failed');
+            setError(result.error);
             return null;
           })
           .catch((err) => console.log(err));
+        setSystems([{}]);
+        setSelected('');
+        setSelectedNewSystem({
+          id: '',
+          displayName: '',
+        });
+        setAwaiting(false);
       }}
     >
       Logout
@@ -287,30 +342,7 @@ function LogoutButton() {
   );
 }
 
-async function vaultCreateSSHKey(comparmentId: string, keyName: string) {
-  window.electron.ipcRendererVault
-    .createSSHKey('vault-create-ssh-key', comparmentId, keyName)
-    .then((result) => {
-      console.log(result);
-      return result;
-    })
-    .catch((err) => console.log(err));
-}
-
-async function vaultExportSSHKey(keyId: string) {
-  window.electron.ipcRendererVault
-    .exportSSHKey('vault-export-ssh-key', keyId)
-    .then((result) => {
-      console.log(result);
-      return result;
-    })
-    .catch((err) => console.log(err));
-}
-
 export default function MainMenu() {
-  const [authenticated, setAuthenticated] = useState(
-    localStorage.getItem(localStorage.getItem('authenticated') || 'false')
-  );
   const [systems, setSystems] = useState([{}]);
   const [selected, setSelected] = useState('');
   const [selectedNewSystem, setSelectedNewSystem] = useState({
@@ -318,7 +350,7 @@ export default function MainMenu() {
     displayName: '',
   });
   const [awaiting, setAwaiting] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     async function fetchData() {
@@ -329,23 +361,17 @@ export default function MainMenu() {
     fetchData();
   }, []);
 
-  console.log(systems);
-
-  // vaultListSSHKeys();
-
-  // const { privateKey, publicKey } = await vaultCreateSSHKey();
-  // console.log(privateKey);
-  // console.log(publicKey);
-
-  // const exportKey = vaultExportSSHKey('Test');
-
   if (systems.length > 0) {
     return (
       <div>
+        {error !== '' ? (
+          <ErrorPopup message={error} setError={setError} />
+        ) : null}
         <SysSelection
           systems={systems}
           selected={selected}
           setSelected={setSelected}
+          setError={setError}
         />
         {selected !== '' ? (
           <StartSystemButton
@@ -359,19 +385,35 @@ export default function MainMenu() {
         <CreateSystemForm
           selectedNewSystem={selectedNewSystem}
           setSelectedNewSystem={setSelectedNewSystem}
+          setError={setError}
         />
-        <LogoutButton />
+        <LogoutButton
+          setError={setError}
+          setSystems={setSystems}
+          setSelected={setSelected}
+          setSelectedNewSystem={setSelectedNewSystem}
+          setAwaiting={setAwaiting}
+        />
       </div>
     );
   }
   return (
     <div>
       <h2>You have no systems yet, create a new one here!</h2>
+      {error !== '' ? <ErrorPopup message={error} setError={setError} /> : null}
       <CreateSystemForm
         selectedNewSystem={selectedNewSystem}
         setSelectedNewSystem={setSelectedNewSystem}
+        setError={setError}
       />
       <OpenSystemCreateButton />
+      <LogoutButton
+        setError={setError}
+        setSystems={setSystems}
+        setSelected={setSelected}
+        setSelectedNewSystem={setSelectedNewSystem}
+        setAwaiting={setAwaiting}
+      />
     </div>
   );
 }
