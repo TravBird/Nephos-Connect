@@ -1,20 +1,8 @@
 /* eslint-disable react/prop-types */
 /* eslint-disable react/jsx-filename-extension */
 import { MemoryRouter as Router, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { SetStateAction, useEffect, useState } from 'react';
 import './App.css';
-
-function closeCreateSystemForm() {
-  document.getElementById('CreateSystemForm').style.display = 'none';
-}
-
-window.addEventListener('click', (event) => {
-  const modal = document.getElementById('CreateSystemForm');
-
-  if (event.target === modal) {
-    closeCreateSystemForm();
-  }
-});
 
 function ErrorPopup({ message, setError }: any) {
   return (
@@ -30,18 +18,26 @@ function ErrorPopup({ message, setError }: any) {
         </span>
         <h2>An error has occured!</h2>
         <h3>{message}</h3>
+        {message.includes(
+          'required information to complete authentication was not provided or was incorrect'
+        ) ? (
+          <h3>
+            Please login again. If the problem persists, please contact a Nephos
+            Admin
+          </h3>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function OpenSystemCreateButton() {
+function OpenSystemCreateButton({ setOpenNewSystemSelection }) {
   return (
     <button
       type="button"
       id="OpenSystemCreateButton"
       onClick={() => {
-        document.getElementById('CreateSystemForm').style.display = 'block';
+        setOpenNewSystemSelection(true);
       }}
     >
       Create New System
@@ -99,13 +95,21 @@ async function getSystemConfigs(setError) {
   const result = await window.electron.ipcRendererOCI.listSystemConfigurations(
     'list-system-configs'
   );
-  return result;
+  console.log(result);
+  if (result.success === 'true') {
+    console.log('Successfully retrieved system configs');
+    return result.configs;
+  }
+  console.log('Error retrieving system configs');
+  setError(result.error.message);
+  return [];
 }
 
 function NewSystemSelection({
   selectedNewSystem,
   setSelectedNewSystem,
   setError,
+  openNewSystemSelection,
 }: any) {
   const [configs, setConfigs] = useState([]);
 
@@ -115,7 +119,7 @@ function NewSystemSelection({
       setConfigs(await getSystemConfigs(setError));
     }
     fetchData();
-  }, []);
+  }, [openNewSystemSelection]);
   return (
     <div id="Create System Select">
       <ul>
@@ -154,7 +158,7 @@ async function createSystemRequest(
 }
 
 function CreateSystemButton({ selectedNewSystem, setError }: any) {
-  console.log('Creaing system with id and display name: ');
+  console.log('creating system with id and display name: ');
   const { id, displayName } = selectedNewSystem;
   return (
     <button
@@ -172,6 +176,7 @@ function CreateSystemForm({
   selectedNewSystem,
   setSelectedNewSystem,
   setError,
+  setOpenNewSystemSelection,
 }: any) {
   return (
     <div id="CreateSystemForm">
@@ -179,7 +184,7 @@ function CreateSystemForm({
         <span
           className="CloseCreateSystemForm"
           onClick={() => {
-            closeCreateSystemForm();
+            setOpenNewSystemSelection(false);
           }}
         >
           &times;
@@ -188,8 +193,9 @@ function CreateSystemForm({
         <NewSystemSelection
           selectedNewSystem={selectedNewSystem}
           setSelectedNewSystem={setSelectedNewSystem}
+          setError={setError}
         />
-        {selectedNewSystem ? (
+        {selectedNewSystem.id !== '' ? (
           <CreateSystemButton
             selectedNewSystem={selectedNewSystem}
             setError={setError}
@@ -200,18 +206,25 @@ function CreateSystemForm({
   );
 }
 
-async function getUserSystems() {
+async function getUserSystems(setError) {
   const result = await window.electron.ipcRendererOCI.listUserSystems(
     'list-user-systems'
   );
-  return result;
+  console.log(result);
+  if (result.success === 'true') {
+    console.log('Successfully retrieved user systems');
+    return result.systems;
+  }
+  console.log('Error retrieving user systems');
+  setError(result.error.message);
+  return [];
 }
 
 function ListSystem({ system, selected, setSelected }: any) {
   const [open, setOpen] = useState(false);
 
   return (
-    <li className="ConfigInfo" key={system.displayName}>
+    <li className="ConfigInfo" key={system.id}>
       <div className="InitialInfo">
         <span id={system.displayName}>
           <input
@@ -300,13 +313,7 @@ function StartSystemButton({ selected, awaiting, setAwaiting, setError }: any) {
   );
 }
 
-function LogoutButton(
-  setError,
-  setSystems,
-  setSelected,
-  setSelectedNewSystem,
-  setAwaiting
-) {
+function LogoutButton(setError: SetStateAction<any>) {
   const navigate = useNavigate();
   return (
     <button
@@ -324,17 +331,10 @@ function LogoutButton(
               return navigate('/');
             }
             console.log('Logout failed');
-            setError(result.error);
+            setError(result.error.message);
             return null;
           })
           .catch((err) => console.log(err));
-        setSystems([{}]);
-        setSelected('');
-        setSelectedNewSystem({
-          id: '',
-          displayName: '',
-        });
-        setAwaiting(false);
       }}
     >
       Logout
@@ -352,10 +352,12 @@ export default function MainMenu() {
   const [awaiting, setAwaiting] = useState(false);
   const [error, setError] = useState('');
 
+  const [openNewSystemSelection, setOpenNewSystemSelection] = useState(false);
+
   useEffect(() => {
     async function fetchData() {
       // You can await here
-      const response = await getUserSystems();
+      const response = await getUserSystems(setError);
       setSystems(response);
     }
     fetchData();
@@ -381,19 +383,18 @@ export default function MainMenu() {
             setError={setError}
           />
         ) : null}
-        <OpenSystemCreateButton />
-        <CreateSystemForm
-          selectedNewSystem={selectedNewSystem}
-          setSelectedNewSystem={setSelectedNewSystem}
-          setError={setError}
+        <OpenSystemCreateButton
+          setOpenNewSystemSelection={setOpenNewSystemSelection}
         />
-        <LogoutButton
-          setError={setError}
-          setSystems={setSystems}
-          setSelected={setSelected}
-          setSelectedNewSystem={setSelectedNewSystem}
-          setAwaiting={setAwaiting}
-        />
+        {openNewSystemSelection ? (
+          <CreateSystemForm
+            selectedNewSystem={selectedNewSystem}
+            setSelectedNewSystem={setSelectedNewSystem}
+            setError={setError}
+            setOpenNewSystemSelection={setOpenNewSystemSelection}
+          />
+        ) : null}
+        <LogoutButton setError={setError} />
       </div>
     );
   }
@@ -401,19 +402,18 @@ export default function MainMenu() {
     <div>
       <h2>You have no systems yet, create a new one here!</h2>
       {error !== '' ? <ErrorPopup message={error} setError={setError} /> : null}
-      <CreateSystemForm
-        selectedNewSystem={selectedNewSystem}
-        setSelectedNewSystem={setSelectedNewSystem}
-        setError={setError}
+      {openNewSystemSelection ? (
+        <CreateSystemForm
+          selectedNewSystem={selectedNewSystem}
+          setSelectedNewSystem={setSelectedNewSystem}
+          setError={setError}
+          setOpenNewSystemSelection={setOpenNewSystemSelection}
+        />
+      ) : null}
+      <OpenSystemCreateButton
+        setOpenNewSystemSelection={setOpenNewSystemSelection}
       />
-      <OpenSystemCreateButton />
-      <LogoutButton
-        setError={setError}
-        setSystems={setSystems}
-        setSelected={setSelected}
-        setSelectedNewSystem={setSelectedNewSystem}
-        setAwaiting={setAwaiting}
-      />
+      <LogoutButton setError={setError} />
     </div>
   );
 }

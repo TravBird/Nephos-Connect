@@ -266,6 +266,7 @@ function LoginRegisterChoice() {
           }}
           internet={internet}
           setInternet={setInternet}
+          setLoadingMessageState={setLoadingMessageState}
         />
         {openWifiSettings ? (
           <WifiSettings

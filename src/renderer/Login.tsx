@@ -1,26 +1,7 @@
 /* eslint-disable react/jsx-filename-extension */
 import { MemoryRouter as Router, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Transition } from 'react-transition-group';
 import './App.css';
-
-const defaultStyle = {
-  transition: `opacity ${400}ms ease-in-out`,
-  opacity: 0,
-};
-
-const transitionStyles = {
-  entering: { opacity: 1 },
-  entered: { opacity: 1 },
-  exiting: { opacity: 0 },
-  exited: { opacity: 0 },
-};
-
-async function checkInternet() {
-  console.log(navigator.onLine);
-  if (!navigator.onLine) {
-  }
-}
 
 async function loginRequest(
   onLoading,
@@ -28,7 +9,8 @@ async function loginRequest(
   onLoadingLocalSetup,
   onLoadingError,
   navigate,
-  setInternet
+  setInternet,
+  setLoadingMessageState
 ) {
   if (!navigator.onLine) {
     setInternet(false);
@@ -40,81 +22,134 @@ async function loginRequest(
     'oci-login-sso'
   );
   console.log(ociLoginResult);
-  if (
-    ociLoginResult.success === 'true' &&
-    ociLoginResult.setupRequired === 'false'
-  ) {
-    // no setup required
-    console.log('No setup required');
-    localStorage.setItem('authenticated', 'true');
-    return navigate('/home');
-  }
-  if (
-    ociLoginResult.success === 'true' &&
-    ociLoginResult.setupRequired === 'true'
-  ) {
+  if (ociLoginResult.success === 'true') {
+    // login successful
+    console.log('Login successful');
+    if (ociLoginResult.setupRequired === 'false') {
+      // no setup required
+      console.log('No setup required');
+      localStorage.setItem('authenticated', 'true');
+      navigate('/home');
+      return;
+    }
+    // local setup required- missing config file
     if (ociLoginResult.message === 'local') {
       onLoadingLocalSetup();
       console.log('Making setup-local request');
       const ociLocalSetupResult =
         await window.electron.ipcRendererSetup.setupLocal('setup-local');
       console.log(ociLocalSetupResult);
-      if (
-        ociLocalSetupResult.success === 'true' &&
-        ociLocalSetupResult.setupRequired === 'true'
-      ) {
-        // additional setup required
-        onLoadingFirstTime();
-        console.log('Making setup-account request');
-        const ociFirstTimeSetupResult =
-          await window.electron.ipcRendererSetup.setupAccount('setup-account');
-        console.log(ociFirstTimeSetupResult);
-        if (ociFirstTimeSetupResult.success === 'true') {
-          console.log('Local and account setup complete!');
-          localStorage.setItem('authenticated', 'true');
-          return navigate('/home');
-        }
-        console.log('Account setup failed');
-        onLoadingError(ociFirstTimeSetupResult.message);
-        if (ociLocalSetupResult.success === 'true') {
+      // local setup complete, checking if additional setup required
+      if (ociLocalSetupResult.success === 'true') {
+        if (ociLocalSetupResult.setupRequired === 'false') {
           // no additional setup required
-          console.log('Local setup complete!');
-          localStorage.setItem('authenticated', 'true');
-          return navigate('/home');
+          // attempting login again
+          console.log('No additional setup required');
+          setLoadingMessageState('Local Config setup complete! Logging you in');
+          const postLocalSetupLoginResult =
+            await window.electron.ipcRendererOCIauth.post_setup_login(
+              'post-setup-login',
+              ociLoginResult.userName
+            );
+          if (postLocalSetupLoginResult.success === 'true') {
+            // login successful
+            console.log('Login successful');
+            localStorage.setItem('authenticated', 'true');
+            await new Promise((f) => setTimeout(f, 10000));
+            navigate('/home');
+            return;
+          }
+          // login post setup failed
+          console.log('Login post setup failed');
+          setLoadingMessageState('Error: Login failed, please restart device and try again');
+          return;
         }
-        console.log('Local setup failed');
-        onLoadingError(ociLocalSetupResult.message);
-        return navigate('/');
+        // additional setup required
+        if (ociLocalSetupResult.setupRequired === 'true') {
+          onLoadingFirstTime();
+          console.log('Making setup-account request');
+          const ociFirstTimeSetupResult =
+            await window.electron.ipcRendererSetup.setupAccount(
+              'setup-account'
+            );
+          console.log(ociFirstTimeSetupResult);
+
+          if (ociFirstTimeSetupResult.success === 'true') {
+            // setup complete
+            // no additional setup required
+            // attempting login again
+            console.log('No additional setup required');
+            setLoadingMessageState('Account setup complete! Logging you in');
+            const postLocalSetupLoginResult =
+              await window.electron.ipcRendererOCIauth.post_setup_login(
+                'post-setup-login',
+                ociLoginResult.userName
+              );
+            if (postLocalSetupLoginResult.success === 'true') {
+              // login successful
+              console.log('Login successful');
+              localStorage.setItem('authenticated', 'true');
+              await new Promise((f) => setTimeout(f, 10000));
+              navigate('/home');
+              return;
+            }
+            // login post setup failed
+            console.log('Login post setup failed');
+            setLoadingMessageState('Error: Login failed, please restart device and try again');
+            return;
+          }
+          // setup failed
+          console.log('Account setup failed');
+          setLoadingMessageState('Error: Account setup failed, please restart device and try again');
+          return;
+        }
       }
-      if (
-        ociLocalSetupResult.success === 'true' &&
-        ociLocalSetupResult.setupRequired === 'false'
-      ) {
-        console.log('Local setup complete, and no additional setup required!');
-        localStorage.setItem('authenticated', 'true');
-        return navigate('/home');
-      }
+      // local setup failed
       console.log('Local setup failed');
-      onLoadingError(ociLocalSetupResult.message);
+      setLoadingMessageState('Error: Local config setup failed, please restart device and try again');
+      return;
     }
+    // account setup required
     if (ociLoginResult.message === 'account') {
       onLoadingFirstTime();
       console.log('Making setup-account request');
       const ociFirstTimeSetupResult =
         await window.electron.ipcRendererSetup.setupAccount('setup-account');
       console.log(ociFirstTimeSetupResult);
+
       if (ociFirstTimeSetupResult.success === 'true') {
-        console.log('Account setup complete!');
-        localStorage.setItem('authenticated', 'true');
-        return navigate('/home');
+        // setup complete
+        // no additional setup required
+        // attempting login again
+        console.log('No additional setup required');
+        setLoadingMessageState('Account setup complete! Logging you in');
+        const postSetupLoginResult =
+          await window.electron.ipcRendererOCIauth.post_setup_login(
+            'post-setup-login',
+            ociLoginResult.userName
+          );
+        if (postSetupLoginResult.success === 'true') {
+          // login successful
+          console.log('Login successful');
+          localStorage.setItem('authenticated', 'true');
+          await new Promise((f) => setTimeout(f, 10000));
+          navigate('/home');
+          return;
+        }
+        // login post setup failed
+        console.log('Login post setup failed');
+        setLoadingMessageState('Error: Login failed, please restart device and try again');
+        return;
       }
+      // setup failed
       console.log('Account setup failed');
-      onLoadingError(ociFirstTimeSetupResult.message);
-    } else {
-      onLoadingError(ociLoginResult.message);
+      setLoadingMessageState('Error: Account setup failed, please restart device and try again');
+      return;
     }
   }
-  onLoadingError('Unknown error');
+  // login failed
+  console.log('Login failed');
+  setLoadingMessageState('Error: Login failed, please restart device and try again');
 }
 
 export function Home({
@@ -125,6 +160,7 @@ export function Home({
   onLoadingError,
   internet,
   setInternet,
+  setLoadingMessageState,
 }) {
   const navigate = useNavigate();
   const [authenticated, setauthenticated] = useState(
@@ -161,7 +197,8 @@ export function Home({
                   onLoadingLocalSetup,
                   onLoadingError,
                   navigate,
-                  setInternet
+                  setInternet,
+                  setLoadingMessageState
                 )
               }
             >
@@ -219,7 +256,7 @@ export function Loading({ isActive, message }) {
       </div>
     );
   }
-  if (message === '' && message.includes('error')) {
+  if (message.includes('error')) {
     return (
       <div>
         {isActive ? (

@@ -1,16 +1,23 @@
+/* eslint-disable no-console */
 // OCI SDK
 import * as common from 'oci-common';
 import * as core from 'oci-core';
 import * as identity from 'oci-identity';
 import * as keyManagement from 'oci-keymanagement';
 import * as responses from 'oci-core/lib/response';
+import * as vault from 'oci-vault';
+import * as secrets from 'oci-secrets';
+import { LOG } from 'oci-sdk';
 import * as fs from 'fs';
 import os from 'os';
-import { KeyObject, createPublicKey } from 'crypto';
+import { createPublicKey } from 'crypto';
+
+const bunyan = require('bunyan');
+
+const bunLog = bunyan.createLogger({ name: 'OCIConnect', level: 'debug' });
+LOG.logger = bunLog;
 
 const crypto = require('crypto');
-
-const { subtle, cryptoKey } = require('crypto').webcrypto;
 
 const filePath = `${os.homedir()}/.oci/config`;
 const keyPath = `${os.homedir()}/.oci/keys/`;
@@ -26,6 +33,10 @@ export class OCIConnect {
 
   keyCryptoClient: keyManagement.KmsCryptoClient;
 
+  vaultsClient: vault.VaultsClient;
+
+  secretClient: secrets.SecretsClient;
+
   profileName: string;
 
   filePath: string;
@@ -33,6 +44,10 @@ export class OCIConnect {
   OCID: string;
 
   userCompartment: string;
+
+  vaultCompartment: string;
+
+  nephosCompartment: string;
 
   constructor(profileName: string) {
     this.profileName = profileName;
@@ -66,11 +81,25 @@ export class OCIConnect {
       authenticationDetailsProvider: provider,
     });
 
+    this.vaultsClient = new vault.VaultsClient({
+      authenticationDetailsProvider: provider,
+    });
+
+    this.secretClient = new secrets.SecretsClient({
+      authenticationDetailsProvider: provider,
+    });
+
     this.keyClient.endpoint =
       'https://d5seppcnaaggq-management.kms.uk-london-1.oraclecloud.com';
 
     this.keyCryptoClient.endpoint =
       'https://d5seppcnaaggq-crypto.kms.uk-london-1.oraclecloud.com';
+
+    this.vaultCompartment =
+      'ocid1.vault.oc1.uk-london-1.d5seppcnaaggq.abwgiljsjjkkpibzs3gv4rqr2nsykyqwk4gubtrunqnaqihvcr2srgtzxqva';
+
+    this.nephosCompartment =
+      'ocid1.compartment.oc1..aaaaaaaa3dfdzabug5l5ymsmgctlnabppmn2umgloy5uja2ppwr2m4aqe6wq';
   }
 
   getProfileName() {
@@ -95,230 +124,131 @@ export class OCIConnect {
 
   // Instance functions
   async listUserInstances(): Promise<core.models.Instance[]> {
-    try {
-      // creating request object
-      const request: core.requests.ListInstancesRequest = {
-        compartmentId: this.userCompartment,
-      };
-      // sending request to client
-      const response = await this.computeClient.listInstances(request);
-      console.log(
-        'Response recieved from list instances: ',
-        response,
-        '. Response Ended.'
-      );
-      return response.items;
-    } catch (e) {
-      console.log('Error in listUserInstances ', e);
-      throw e;
-    }
+    // creating request object
+    const request: core.requests.ListInstancesRequest = {
+      compartmentId: this.userCompartment,
+    };
+    // sending request to client
+    const response = await this.computeClient.listInstances(request);
+    return response.items;
   }
 
   async startInstance(
     instanceId: string
   ): Promise<responses.InstanceActionResponse> {
-    try {
-      const request: core.requests.InstanceActionRequest = {
-        instanceId,
-        action: core.requests.InstanceActionRequest.Action.Start,
-      };
+    const request: core.requests.InstanceActionRequest = {
+      instanceId,
+      action: core.requests.InstanceActionRequest.Action.Start,
+    };
 
-      const response = await this.computeClient.instanceAction(request);
-
-      console.log(
-        'Response recieved from start instance: ',
-        response,
-        '. Response Ended.'
-      );
-
-      return response;
-    } catch (e) {
-      console.log('Error in startInstance ', e);
-      throw e;
-    }
+    const response = await this.computeClient.instanceAction(request);
+    return response;
   }
 
   async stopInstance(
     instanceId: string
   ): Promise<responses.InstanceActionResponse> {
-    try {
-      const request: core.requests.InstanceActionRequest = {
-        instanceId,
-        action: core.requests.InstanceActionRequest.Action.Softstop,
-      };
+    const request: core.requests.InstanceActionRequest = {
+      instanceId,
+      action: core.requests.InstanceActionRequest.Action.Softstop,
+    };
 
-      const response = await this.computeClient.instanceAction(request);
-
-      console.log(
-        'Response recieved from stop instance: ',
-        response,
-        '. Response Ended.'
-      );
-
-      return response;
-    } catch (e) {
-      console.log('Error in stopInstance ', e);
-      throw e;
-    }
+    const response = await this.computeClient.instanceAction(request);
+    return response;
   }
 
   // Teriminate instance
   async terminateInstance(
     instanceId: string
   ): Promise<responses.TerminateInstanceResponse> {
-    try {
-      const request: core.requests.TerminateInstanceRequest = {
-        instanceId,
-      };
-
-      const response = await this.computeClient.terminateInstance(request);
-
-      console.log(
-        'Response recieved from terminate instance: ',
-        response,
-        '. Response Ended.'
-      );
-
-      return response;
-    } catch (e) {
-      console.log('Error in terminateInstance ', e);
-      throw e;
-    }
+    const request: core.requests.TerminateInstanceRequest = {
+      instanceId,
+    };
+    const response = await this.computeClient.terminateInstance(request);
+    return response;
   }
 
   // Oracle Vault functions
-  async importSSHKey(
-    displayName: string,
-    keyMaterial: any
-  ): Promise<keyManagement.models.ImportKeyDetails> {
-    const compartmentId =
-      'ocid1.compartment.oc1..aaaaaaaa3dfdzabug5l5ymsmgctlnabppmn2umgloy5uja2ppwr2m4aqe6wq';
-    try {
-      const keyShape = {
-        algorithm: keyManagement.models.KeyShape.Algorithm.Rsa,
-        length: 512,
-      };
+  async createSecret(
+    secretContent: string,
+    secretName: string,
+    keyId: string = 'ocid1.key.oc1.uk-london-1.d5seppcnaaggq.abwgiljtbcrfrbyv3b62nejurali7upcvovgrtpeqx7svt7yjb6k5s2qffpa',
+    compartmentId: string = this.nephosCompartment,
+    vaultId: string = this.vaultCompartment
+  ): Promise<vault.models.Secret> {
+    /**
+    Creates a secret in the vault with the given secret content.
+    The secret content is converted to base64 and then stored in the vault.
 
-      const wrappedImportKey = {
-        keyMaterial,
-        wrappingAlgorithm:
-          keyManagement.models.WrappedImportKey.WrappingAlgorithm
-            .RsaOaepAesSha256,
-      };
+    @param secretContent: The secret content that will be stored in the vault.
+    @param secretName: The name of the secret that will be created.
+    @param keyId: The OCID Key id that will be used to encrypt the secret content. If not specified uses default Key OCID
+    @param compartmentId: Compartment id where the secret will be created. If not specified uses default Nephos Compartment
+    @param vaultId: The vault id where the secret will be created. If not specified uses default Vault
 
-      const importKeyDetails = {
-        compartmentId,
-        displayName,
-        keyShape,
-        wrappedImportKey,
-      };
+    @returns secret object that was created.
+    */
 
-      const request: keyManagement.requests.ImportKeyRequest = {
-        importKeyDetails,
-      };
-      const response = await this.keyClient.importKey(request);
-      console.log(
-        'Response recieved from import key: ',
-        response,
-        '. Response Ended.'
-      );
-      return response;
-    } catch (e) {
-      console.log('Error in importSSHKey ', e);
-      throw e;
+    // converting secret content to base64
+    const b64Content = Buffer.from(secretContent, 'utf8').toString('base64');
+    const secretContentBase64: vault.models.Base64SecretContentDetails = {
+      contentType: 'BASE64',
+      content: b64Content,
+    };
+
+    const createSecretDetails: vault.models.CreateSecretDetails = {
+      compartmentId,
+      secretContent: secretContentBase64,
+      secretName,
+      keyId,
+      vaultId,
+    };
+    const request: vault.requests.CreateSecretRequest = {
+      createSecretDetails,
+    };
+    const response = await this.vaultsClient.createSecret(request);
+
+    return response.secret;
+  }
+
+  async getSecretContent(secretName: string): Promise<string> {
+    /**
+     * Gets the secret content from the vault with the given secret name.
+     * @param secretName: The secret name of the secret object that will be retrieved.
+     * @returns Decoded (if BASE64) content that was retrieved.
+     * */
+    const request: secrets.requests.GetSecretBundleByNameRequest = {
+      secretName,
+      vaultId: this.vaultCompartment,
+    };
+    const response = await this.secretClient.getSecretBundleByName(request);
+
+    // decoding base64 secret content
+    if (response.secretBundle.secretBundleContent.contentType === 'BASE64') {
+      return Buffer.from(
+        response.secretBundle.secretBundleContent.content,
+        'base64'
+      ).toString('utf8');
     }
+    return response.secretBundle.secretBundleContent.content;
   }
 
   async listSSHKeys(): Promise<keyManagement.models.KeySummary[]> {
-    try {
-      const request: keyManagement.requests.ListKeysRequest = {
-        compartmentId:
-          'ocid1.compartment.oc1..aaaaaaaa3dfdzabug5l5ymsmgctlnabppmn2umgloy5uja2ppwr2m4aqe6wq',
-      };
-
-      const response = await this.keyClient.listKeys(request);
-
-      console.log(
-        'Response recieved from list keys: ',
-        response,
-        '. Response Ended.'
-      );
-      return response.items;
-    } catch (e) {
-      console.log('Error in listSSHKeys ', e);
-      throw e;
-    }
+    const request: keyManagement.requests.ListKeysRequest = {
+      compartmentId:
+        'ocid1.compartment.oc1..aaaaaaaa3dfdzabug5l5ymsmgctlnabppmn2umgloy5uja2ppwr2m4aqe6wq',
+    };
+    const response = await this.keyClient.listKeys(request);
+    return response.items;
   }
 
   async getSSHKey(keyId: string): Promise<keyManagement.models.Key> {
-    try {
-      const request: keyManagement.requests.GetKeyRequest = {
-        keyId,
-      };
+    const request: keyManagement.requests.GetKeyRequest = {
+      keyId,
+    };
 
-      const response = await this.keyClient.getKey(request);
-      console.log(
-        'Response recieved from get key: ',
-        response,
-        '. Response Ended.'
-      );
-      return response.key;
-    } catch (e) {
-      console.log('Error in getSSHKey ', e);
-      throw e;
-    }
-  }
-
-  async exportSSHKey(
-    keyId: string,
-    publicKey: string
-  ): Promise<keyManagement.models.ExportedKeyData> {
-    try {
-      const algorithm =
-        keyManagement.models.ExportKeyDetails.Algorithm.RsaOaepAesSha256;
-      const request: keyManagement.requests.ExportKeyRequest = {
-        exportKeyDetails: {
-          keyId:
-            'ocid1.key.oc1.uk-london-1.d5seppcnaaggq.abwgiljtmrijn5vv3y2snqhccdd262zdyrkxt7tip66ozmtyfucrk7m2jafq',
-          algorithm,
-          publicKey,
-        },
-      };
-
-      const response = await this.keyCryptoClient.exportKey(request);
-
-      response.exportedKeyData;
-
-      const key = keyManagement.models.WrappedImportKey;
-      console.log(
-        'Response recieved from export key: ',
-        response,
-        '. Response Ended.'
-      );
-      return response.exportedKeyData;
-    } catch (e) {
-      console.log('Error in exportSSHKey ', e);
-      throw e;
-    }
-  }
-
-  // get Wrapping key
-  async getWrappingKey(): Promise<keyManagement.models.WrappingKey> {
-    try {
-      const request: keyManagement.requests.GetWrappingKeyRequest = {};
-
-      const response = await this.keyClient.getWrappingKey(request);
-
-      console.log(
-        'Response recieved from get wrapping key: ',
-        response,
-        '. Response Ended.'
-      );
-      return response.wrappingKey;
-    } catch (e) {
-      console.log('Error in getWrappingKey ', e);
-      throw e;
-    }
+    const response = await this.keyClient.getKey(request);
+    return response.key;
   }
 
   // Instance configuration functions
@@ -333,26 +263,17 @@ export class OCIConnect {
      * @return instanceConfigurations: core.models.InstanceConfigurationSummary[]
      *
      */
-    try {
-      // creating request object
-      const request: core.requests.ListInstanceConfigurationsRequest = {
-        compartmentId:
-          'ocid1.compartment.oc1..aaaaaaaamowsqxoe4apfqwhqdxp6s4b4222s5eqqpt3a4fegjorekzkw3wta',
-      };
-      // sending request to client
-      const response = await this.clientManagement.listInstanceConfigurations(
-        request
-      );
-      console.log(
-        'Response recieved from get instance configuration: ',
-        response,
-        '. Response Ended.'
-      );
-      return response.items;
-    } catch (e) {
-      console.log('Error in getInstanceConfiguration ', e);
-      throw e;
-    }
+    // creating request object
+    const request: core.requests.ListInstanceConfigurationsRequest = {
+      compartmentId:
+        'ocid1.compartment.oc1..aaaaaaaamowsqxoe4apfqwhqdxp6s4b4222s5eqqpt3a4fegjorekzkw3wta',
+    };
+
+    // sending request to client
+    const response = await this.clientManagement.listInstanceConfigurations(
+      request
+    );
+    return response.items;
   }
 
   async getInstanceConfig(
@@ -371,54 +292,39 @@ export class OCIConnect {
      * console.log('Instance Configuration Details: ', instanceConfiguration);
      *
      */
-    try {
-      // Create a request and dependent object(s).
-      const getInstanceConfigurationRequest: core.requests.GetInstanceConfigurationRequest =
-        {
-          instanceConfigurationId: configId,
-        };
+    // Create a request and dependent object(s).
+    const getInstanceConfigurationRequest: core.requests.GetInstanceConfigurationRequest =
+      {
+        instanceConfigurationId: configId,
+      };
 
-      // Send request to the Client.
-      const getInstanceConfigurationResponse =
-        await this.clientManagement.getInstanceConfiguration(
-          getInstanceConfigurationRequest
-        );
-      return getInstanceConfigurationResponse.instanceConfiguration;
-    } catch (error) {
-      console.log(`getInstanceConfiguration Failed with error  ${error}`);
-      throw error;
-    }
+    // Send request to the Client.
+    const getInstanceConfigurationResponse =
+      await this.clientManagement.getInstanceConfiguration(
+        getInstanceConfigurationRequest
+      );
+    return getInstanceConfigurationResponse.instanceConfiguration;
   }
 
   async launchInstanceFromConfig(
     instanceConfigurationId: string,
     publicKey: string
   ): Promise<core.models.Instance> {
-    try {
-      const instanceConfig = await this.getInstanceConfig(
-        instanceConfigurationId
-      );
-
-      const { instanceDetails } = instanceConfig;
-
-      instanceConfig.instanceDetails.launchDetails.metadata = {
-        ssh_authorized_keys: `ssh-rsa ${publicKey}`,
-      };
-
-      const request: core.requests.LaunchInstanceConfigurationRequest = {
-        instanceConfigurationId,
-        instanceConfiguration: instanceDetails,
-      };
-
-      const response = await this.clientManagement.launchInstanceConfiguration(
-        request
-      );
-
-      return response;
-    } catch (error) {
-      console.log('Error in launchInstanceFromConfig ', error);
-      throw error;
-    }
+    const instanceConfig = await this.getInstanceConfig(
+      instanceConfigurationId
+    );
+    const { instanceDetails } = instanceConfig;
+    instanceConfig.instanceDetails.launchDetails.metadata = {
+      ssh_authorized_keys: `ssh-rsa ${publicKey}`,
+    };
+    const request: core.requests.LaunchInstanceConfigurationRequest = {
+      instanceConfigurationId,
+      instanceConfiguration: instanceDetails,
+    };
+    const response = await this.clientManagement.launchInstanceConfiguration(
+      request
+    );
+    return response;
   }
 
   // User management functions
@@ -441,170 +347,134 @@ export class OCIConnect {
   }
 
   async getUserOCID(user: string) {
-    try {
-      const request: identity.requests.ListUsersRequest = {
-        compartmentId:
-          'ocid1.tenancy.oc1..aaaaaaaax25zqrammapt7upslefqq3kv6dzilt6z55yobnf2cmrn3tcimgpa',
-        identityProviderId:
-          'ocid1.saml2idp.oc1..aaaaaaaace5zv3qqzb6ycrvbvmto4uhjyfmsrqkveiq4pa5rvh7jcjg7fpzq',
-      };
-      const response = await this.identityClient.listUsers(request);
-      for (let i = 0; i < response.items.length; i++) {
-        if (response.items[i].description === user) {
-          this.OCID = response.items[i].id;
-          return response.items[i].id;
-        }
+    const request: identity.requests.ListUsersRequest = {
+      compartmentId:
+        'ocid1.tenancy.oc1..aaaaaaaax25zqrammapt7upslefqq3kv6dzilt6z55yobnf2cmrn3tcimgpa',
+      identityProviderId:
+        'ocid1.saml2idp.oc1..aaaaaaaace5zv3qqzb6ycrvbvmto4uhjyfmsrqkveiq4pa5rvh7jcjg7fpzq',
+    };
+    const response = await this.identityClient.listUsers(request);
+    for (let i = 0; i < response.items.length; i++) {
+      if (response.items[i].description === user) {
+        this.OCID = response.items[i].id;
+        return response.items[i].id;
       }
-      throw new Error('User not found');
-    } catch (error) {
-      console.log('Error in getUser ', error);
-      throw error;
     }
+    throw new Error('User not found');
   }
 
   // Compartment management functions
   // Check if compartment exists
   async findUserCompartment(profileName) {
-    try {
-      const compartmentName = profileName;
-      const request: identity.requests.ListCompartmentsRequest = {
-        compartmentId:
-          'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
-        name: compartmentName,
-      };
-      const response = await this.identityClient.listCompartments(request);
-      if (response.items.length === 0) {
-        return undefined;
-      }
-      return response.items[0];
-    } catch (error) {
-      console.log('Error in compartmentExists ', error);
-      throw error;
+    const compartmentName = profileName.replace(/[^\w-]/g, '');
+    const request: identity.requests.ListCompartmentsRequest = {
+      compartmentId:
+        'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
+      name: compartmentName,
+    };
+    const response = await this.identityClient.listCompartments(request);
+    if (response.items.length === 0) {
+      return undefined;
     }
+    return response.items[0];
   }
 
   // Create a new compartment
   async createCompartment(profileName) {
-    try {
-      const compartmentName = profileName;
-      const compartment: identity.models.CreateCompartmentDetails = {
-        compartmentId:
-          'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
-        name: compartmentName,
-        description: `Nephos generated compartment for ${compartmentName}`,
-      };
-      const request: identity.requests.CreateCompartmentRequest = {
-        createCompartmentDetails: compartment,
-      };
-      const response = await this.identityClient.createCompartment(request);
-      return response;
-    } catch (error) {
-      console.log('Error in createCompartment ', error);
-      throw error;
-    }
+    const compartmentName = `${profileName}`.replace(/[^\w-]/g, '');
+    const compartment: identity.models.CreateCompartmentDetails = {
+      compartmentId:
+        'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
+      name: compartmentName,
+      description: `Nephos generated compartment for ${compartmentName}`,
+    };
+    const request: identity.requests.CreateCompartmentRequest = {
+      createCompartmentDetails: compartment,
+    };
+    const response = await this.identityClient.createCompartment(request);
+    return response;
   }
 
   // Group management functions
   // Check if group exists
   async groupExists() {
-    try {
-      const groupName = this.profileName;
-      const request: identity.requests.ListGroupsRequest = {
-        compartmentId:
-          'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
-        name: groupName,
-      };
-      const response = await this.identityClient.listGroups(request);
-      if (response.items.length > 0) {
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.log('Error in groupExists ', error);
-      throw error;
+    const groupName = this.profileName;
+    const request: identity.requests.ListGroupsRequest = {
+      compartmentId:
+        'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
+      name: groupName,
+    };
+    const response = await this.identityClient.listGroups(request);
+    if (response.items.length > 0) {
+      return true;
     }
+    return false;
   }
 
   // Create a new group
   async createGroup() {
-    try {
-      const groupName = this.profileName;
-      const group: identity.models.CreateGroupDetails = {
-        compartmentId:
-          'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
-        name: groupName,
-        description: `Nephos generated group for ${groupName}`,
-      };
-      const request: identity.requests.CreateGroupRequest = {
-        createGroupDetails: group,
-      };
-      const response = await this.identityClient.createGroup(request);
-      return response;
-    } catch (error) {
-      console.log('Error in createGroup ', error);
-      throw error;
-    }
+    const groupName = this.profileName;
+    const group: identity.models.CreateGroupDetails = {
+      compartmentId:
+        'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
+      name: groupName,
+      description: `Nephos generated group for ${groupName}`,
+    };
+    const request: identity.requests.CreateGroupRequest = {
+      createGroupDetails: group,
+    };
+    const response = await this.identityClient.createGroup(request);
+    return response;
   }
 
   // Policy management functions
   // Check if policy exists
   async policyExists() {
-    try {
-      const policyName = this.profileName;
-      const request: identity.requests.ListPoliciesRequest = {
-        compartmentId:
-          'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
-        name: policyName,
-      };
-      const response = await this.identityClient.listPolicies(request);
-      if (response.items.length > 0) {
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.log('Error in policyExists ', error);
-      throw error;
+    const policyName = this.profileName;
+    const request: identity.requests.ListPoliciesRequest = {
+      compartmentId:
+        'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
+      name: policyName,
+    };
+    const response = await this.identityClient.listPolicies(request);
+    if (response.items.length > 0) {
+      return true;
     }
+    return false;
   }
 }
 
 // Creates a new local profile in the config file
 export function CreateProfile(
-  email: string,
-  user: string,
+  userName: string,
+  userOCID: string,
   fingerprint: string,
   tenancy: string,
   region: string,
   KeyFile: string
 ) {
-  const config = `\r\n[${email}]
-  user=${user}\r
+  const config = `\r\n[${userName}]
+  user=${userOCID}\r
   fingerprint=${fingerprint}\r
   tenancy=${tenancy}\r
   region=${region}\r
   key_file=${keyPath}${KeyFile}\r
   `;
-
-  try {
-    fs.appendFileSync(filePath, config);
-    console.log('New profile added to config file');
-    return true;
-  } catch (e) {
-    console.log('Error in CreateProfile: ', e);
-    throw e;
-  }
+  fs.appendFileSync(filePath, config);
+  console.log('New profile added to config file');
+  console.log('Profile: ', config);
+  return true;
 }
 
 // Checks if a profile exists in the config file
 export function PofileExists(profileName: string) {
   try {
-    const provider = new common.ConfigFileAuthenticationDetailsProvider(
+    const test = new common.ConfigFileAuthenticationDetailsProvider(
       filePath,
       profileName
     );
     return true;
-  } catch (e) {
-    console.log(e);
+  } catch (err) {
     return false;
   }
 }
@@ -625,20 +495,20 @@ export async function GenerateKeys() {
           format: 'pem',
         },
       },
-      (err: any, publicKey: any, privateKey: any) => {
+      (err: any, publicKey: string, privateKey: string) => {
         if (err) throw reject(err);
         const keyObject = createPublicKey(publicKey);
         const publicKeyDER = keyObject.export({
           type: 'spki',
           format: 'der',
         });
-        const fingerprint = crypto
+        const fingerprint: string = crypto
           .createHash('md5')
           .update(publicKeyDER)
           .digest('hex')
           .replace(/..\B/g, '$&:');
 
-        resolve({ publicKey, privateKey, fingerprint });
+        return resolve({ publicKey, privateKey, fingerprint });
       }
     );
   });
@@ -677,133 +547,4 @@ export async function DecryptWrappedKey(privateKey, encryptedKey) {
   );
   const targetKeyStrig = decryptedTargetKey.toString('hex');
   return targetKeyStrig;
-}
-
-export async function WrapKey2(wrappingPublicKey, targetKey) {
-  // Generate a temporary AES key:
-  const aesKey = crypto.randomBytes(32);
-
-  // Wrap the temporary AES key with the public wrapping key using RSA-OAEP with SHA-256:
-  const wrappedAESKey = crypto.publicEncrypt(
-    {
-      key: wrappingPublicKey,
-      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-      oaepHash: 'sha256',
-    },
-    aesKey
-  );
-
-  // Generate hexadecimal of the temporary AES key material:
-  const aesKeyString = aesKey.toString('hex');
-
-  // If the RSA private key you want to import is in PEM format, convert it to DER:
-  const privateKey = crypto.createPrivateKey(targetKey);
-  const exportedPrivateKey = privateKey.export({
-    type: 'pkcs8',
-    format: 'der',
-  });
-
-  // Wrap your RSA private key with the temporary AES key:
-  const cipher = crypto.createCipheriv(
-    'aes-256-cbc',
-    aesKey,
-    Buffer.alloc(16, 0)
-  );
-  const wrappedPrivateKey = cipher.update(exportedPrivateKey);
-  const wrappedPrivateKeyString = wrappedPrivateKey.toString('hex');
-
-  // Concatenate the wrapped temporary AES key and the wrapped RSA private key:
-  const wrappedKey = wrappedAESKey.toString('hex') + wrappedPrivateKeyString;
-
-  // Encode the concatenated wrapped data in base64:
-  const wrappedKeyBase64 = Buffer.from(wrappedKey, 'hex').toString('base64');
-
-  return wrappedKeyBase64;
-}
-
-export async function WrapKey(wrappingKey: string, targetKey: string) {
-  const targetKeyObject = crypto.createPrivateKey(targetKey);
-  const exportedTargetKey = targetKeyObject.export({
-    type: 'pkcs8',
-    format: 'der',
-  });
-  // import into cryptokey object
-  const cryptoTargetkey = await subtle.importKey(
-    'pkcs8',
-    exportedTargetKey,
-    {
-      name: 'RSA-OAEP',
-      hash: 'SHA-256',
-    },
-    true,
-    []
-  );
-
-  // import Wrapping key to Crypto key object
-  const wrappingKeyObject = crypto.createPublicKey(wrappingKey);
-  const exportedWrappingKey = wrappingKeyObject.export({
-    type: 'spki',
-    format: 'der',
-  });
-  const cryptoWrappingKey = await subtle.importKey(
-    'spki',
-    exportedWrappingKey,
-    {
-      name: 'RSA-OAEP',
-      hash: 'SHA-256',
-    },
-    true,
-    ['wrapKey']
-  );
-
-  // Generate a random temporary AES key.
-  const tempAESKey = await subtle.generateKey(
-    {
-      name: 'AES-GCM',
-      length: 256,
-    },
-    true,
-    ['wrapKey', 'unwrapKey']
-  );
-
-  // Wrap temporary AES key using the public RSA wrapping key.
-  const wrappedAESKey = await subtle.wrapKey(
-    'raw',
-    tempAESKey,
-    cryptoWrappingKey,
-    'RSA-OAEP'
-  );
-
-  // Wrap target key using the temporary AES key.
-
-  console.log(cryptoTargetkey);
-  console.log(tempAESKey);
-
-  const wrappedTargetKey = await subtle.wrapKey(
-    'pkcs8',
-    cryptoTargetkey,
-    tempAESKey,
-    {
-      name: 'AES-GCM',
-      iv: Buffer.alloc(16, 0),
-    }
-  );
-
-  console.log('Wrapped AES key: ', wrappedAESKey);
-  console.log('Wrapped target key: ', wrappedTargetKey);
-
-  // Concatenate the encrypted temporary AES key and the encrypted target key.
-  const wrappedKey = Buffer.concat([
-    Buffer.from(wrappedAESKey),
-    Buffer.from(wrappedTargetKey),
-  ]);
-
-  console.log('Wrapped key buffer: ', wrappedKey);
-
-  // Encode the wrapped data in base64 format.
-  const wrappedKeyBase64 = wrappedKey.toString('base64');
-
-  console.log('Wrapped key base64: ', wrappedKeyBase64);
-
-  return wrappedKeyBase64;
 }

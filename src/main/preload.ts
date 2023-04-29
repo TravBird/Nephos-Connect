@@ -12,6 +12,14 @@ const electronHandler = {
       const result = await ipcRenderer.invoke(channel);
       return result;
     },
+    async login(channel: 'oci-login', request: any) {
+      const result = await ipcRenderer.invoke(channel, request);
+      return result;
+    },
+    async post_setup_login(channel: 'post-setup-login', request: any) {
+      const result = await ipcRenderer.invoke(channel, request);
+      return result;
+    },
     async register_sso(channel: 'oci-register-sso') {
       const result = await ipcRenderer.invoke(channel);
       return result;
@@ -44,11 +52,11 @@ const electronHandler = {
     },
     async createSystem(
       channel: 'create-system',
-      compartmentID: string,
+      instanceConfigurationId: string,
       displayName: string
     ) {
       const result = await ipcRenderer.invoke(channel, {
-        compartmentID,
+        instanceConfigurationId,
         displayName,
       });
       return result;
@@ -86,8 +94,8 @@ const electronHandler = {
       const result = await ipcRenderer.invoke(channel);
       return result;
     },
-    async addWifiNetwork(channel: 'add-wifi-network', args) {
-      const result = await ipcRenderer.invoke(channel, args);
+    async addWifiNetwork(channel: 'add-wifi-network', request: any) {
+      const result = await ipcRenderer.invoke(channel, request);
       return result;
     },
   },
