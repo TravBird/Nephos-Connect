@@ -2,7 +2,7 @@
 /* eslint global-require: off, no-console: off, promise/always-return: off */
 import path from 'path';
 import { app, BrowserWindow, shell, ipcMain, BrowserView } from 'electron';
-import jwt_decode from 'jwt-decode';
+import jwtDecode from 'jwt-decode';
 import os from 'os';
 import fs from 'fs';
 import MenuBuilder from './menu';
@@ -25,8 +25,8 @@ wifi.init({
   iface: null,
 });
 
-let mainWindow: BrowserWindow | null = null;
-let authWindow: BrowserView | null = null;
+let mainWindow: BrowserWindow;
+// let authWindow: BrowserView | null = null;
 // let ociConnectUser: OCIConnect | null = null;
 const ociConnectAdmin = new OCIConnect('DEFAULT');
 let newUserName = '';
@@ -52,8 +52,11 @@ function launchVNCSoftware() {
   shell.openPath(vncPath);
 }
 
-async function loginWindowChange(idcsAuth: IDCSAuth) {
-  return new Promise((resolve) => {
+async function loginWindowChange(
+  idcsAuth: IDCSAuth,
+  authWindow: BrowserView
+): Promise<{ success: string; idToken: string }> {
+  return new Promise<{ success: string; idToken: string }>((resolve) => {
     // awaiting for url change
     authWindow.webContents.on('will-navigate', async (event, url) => {
       // getting auth token if url contains callback
@@ -70,8 +73,6 @@ async function loginWindowChange(idcsAuth: IDCSAuth) {
 
           authWindow.webContents.session.clearStorageData();
           authWindow.webContents.session.clearAuthCache();
-
-          authWindow = new BrowserView();
 
           // making access token request
           try {
@@ -91,8 +92,8 @@ async function loginWindowChange(idcsAuth: IDCSAuth) {
   });
 }
 
-async function registerWindowChange() {
-  return new Promise((resolve) => {
+async function registerWindowChange(authWindow: BrowserView) {
+  return new Promise<{}>((resolve) => {
     // awaiting for url change
     authWindow.webContents.on('will-navigate', async (event, url) => {
       if (url.includes('ui/v1/signin')) {
@@ -112,8 +113,8 @@ async function registerWindowChange() {
 }
 
 // User setup functions
-async function firstTimeUserSetup() {
-  return new Promise((resolve) => {
+async function firstTimeUserSetup(): Promise<{ success: string }> {
+  return new Promise<{ success: string }>((resolve) => {
     try {
       // create compartment for the user
       ociConnectAdmin.createCompartment(ociConnectUser.getProfileName());
@@ -126,10 +127,13 @@ async function firstTimeUserSetup() {
   });
 }
 
-async function setupLocalUser(name: string, userOCID: string) {
+async function setupLocalUser(
+  name: string,
+  userOCID: string
+): Promise<{ success: string; setupRequired: string; message: string }> {
   console.log('Generating keys...');
   const result = await GenerateKeys();
-  const { publicKey, privateKey, fingerprint } = result;
+  const { publicKey, privateKey, fingerprint }: any = result;
   try {
     // generate key and fingerprint
     // upload generated keys to OCI
@@ -176,12 +180,14 @@ async function setupLocalUser(name: string, userOCID: string) {
     };
   } catch (error) {
     console.log(error);
-    return { success: 'false' };
+    return { success: 'false', setupRequired: 'false', message: '' };
   }
 }
 
 // login and register functionallity
-async function loginCheck(name: string) {
+async function loginCheck(
+  name: string
+): Promise<{ success: string; setupRequired: string; message: string }> {
   console.log('Login Check for:', name);
   // checking if users profile exists in oci config, if not, creates
   if (PofileExists(name) === true) {
@@ -195,7 +201,7 @@ async function loginCheck(name: string) {
       return {
         success: 'true',
         setupRequired: 'false',
-        userName: name,
+        message: '',
       };
     }
     console.log('Compartment Does Not Exist, additional setup required');
@@ -203,7 +209,6 @@ async function loginCheck(name: string) {
       success: 'true',
       setupRequired: 'true',
       message: 'account',
-      userName: name,
     };
   }
   console.log('Profile Does Not Exist');
@@ -212,7 +217,6 @@ async function loginCheck(name: string) {
     success: 'true',
     setupRequired: 'true',
     message: 'local',
-    userName: name,
   };
 }
 
@@ -220,7 +224,7 @@ async function loginCheck(name: string) {
 ipcMain.handle('oci-login-sso', async () => {
   console.log('Login SSO');
   const idcsAuth = new IDCSAuth();
-  authWindow = new BrowserView();
+  const authWindow = new BrowserView();
   authWindow.setBounds({ x: 0, y: 0, width: 0, height: 0 });
   mainWindow.setBrowserView(authWindow);
   const bounds = mainWindow.getBounds();
@@ -234,11 +238,14 @@ ipcMain.handle('oci-login-sso', async () => {
     height: bounds.height,
   });
   console.log('Waiting for URL to change...');
-  const result = await loginWindowChange(idcsAuth);
+  const result = await loginWindowChange(idcsAuth, authWindow);
+  if (result === undefined || result === null) {
+    return { success: 'false' };
+  }
 
   if (result.success === 'true') {
     const { idToken } = result;
-    const name = jwt_decode(idToken).sub;
+    const name = jwtDecode(idToken).sub;
     const loginResponse = await loginCheck(name);
     if (loginResponse.success === 'true') {
       return loginResponse;
@@ -257,7 +264,7 @@ ipcMain.handle('post-setup-login', async (event, name) => {
   return { success: 'false' };
 });
 
-ipcMain.handle('setup-local', async (event, name) => {
+ipcMain.handle('setup-local', async () => {
   const userOCID = await ociConnectAdmin.getUserOCID(newUserName);
   console.log('User OCID:', userOCID);
   const result = await setupLocalUser(newUserName, userOCID);
@@ -304,7 +311,7 @@ ipcMain.handle('setup-account', async () => {
 // register
 ipcMain.handle('oci-register-sso', async () => {
   const idcsAuth = new IDCSAuth();
-  authWindow = new BrowserView();
+  const authWindow = new BrowserView();
   authWindow.setBounds({ x: 0, y: 0, width: 0, height: 0 });
   mainWindow.setBrowserView(authWindow);
   const bounds = mainWindow.getBounds();
@@ -411,7 +418,7 @@ ipcMain.handle(
     console.log('vault-create-ssh-key received');
     try {
       // generate key pair
-      const { publicKey, privateKey, fingerprint } = await GenerateKeys();
+      const { publicKey, privateKey } = await GenerateKeys();
 
       // wrap private key in preparation for upload to OCI Vault
       const wrappedPrivateKey = await WrapKey(publicKey, privateKey);
@@ -442,7 +449,7 @@ ipcMain.handle(
 
 // Get SSH Key from OCI Vault
 ipcMain.handle('vault-export-ssh-key', async (event, keyId: string) => {
-  const { publicKey, privateKey, fingerprint } = await GenerateKeys();
+  const { publicKey, privateKey } = await GenerateKeys();
   console.log('vault-export-ssh-key received');
   try {
     const key = await ociConnectAdmin.exportSSHKey(keyId, publicKey);
@@ -494,17 +501,13 @@ ipcMain.handle('vault-get-ssh-key', async (event, keyId: string) => {
 
 ipcMain.handle('logout', async () => {
   console.log('logout received');
-
-  authWindow = null;
-  ociConnectUser = null;
-
+  // Run logout cleanup
   return { success: 'true' };
 });
 
 // WiFi listeners
 ipcMain.handle('get-wifi-networks', async () => {
   console.log('get-wifi-networks received');
-
   try {
     const networks = await wifi.scan();
     console.log('Networks received from WiFi: ', networks);

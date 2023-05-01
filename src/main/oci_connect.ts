@@ -153,7 +153,8 @@ export class OCIConnect {
       action: core.requests.InstanceActionRequest.Action.Softstop,
     };
 
-    const response = await this.computeClient.instanceAction(request);
+    const response: core.responses.InstanceActionResponse =
+      await this.computeClient.instanceAction(request);
     return response;
   }
 
@@ -164,7 +165,8 @@ export class OCIConnect {
     const request: core.requests.TerminateInstanceRequest = {
       instanceId,
     };
-    const response = await this.computeClient.terminateInstance(request);
+    const response: core.responses.TerminateInstanceResponse =
+      await this.computeClient.terminateInstance(request);
     return response;
   }
 
@@ -206,7 +208,8 @@ export class OCIConnect {
     const request: vault.requests.CreateSecretRequest = {
       createSecretDetails,
     };
-    const response = await this.vaultsClient.createSecret(request);
+    const response: vault.responses.CreateSecretResponse =
+      await this.vaultsClient.createSecret(request);
 
     return response.secret;
   }
@@ -221,16 +224,17 @@ export class OCIConnect {
       secretName,
       vaultId: this.vaultCompartment,
     };
-    const response = await this.secretClient.getSecretBundleByName(request);
+    const response: secrets.responses.GetSecretBundleByNameResponse =
+      await this.secretClient.getSecretBundleByName(request);
+
+    const secretContent: string = response.secretBundle.secretBundleContent
+      ?.content as string;
 
     // decoding base64 secret content
-    if (response.secretBundle.secretBundleContent.contentType === 'BASE64') {
-      return Buffer.from(
-        response.secretBundle.secretBundleContent.content,
-        'base64'
-      ).toString('utf8');
+    if (response.secretBundle.secretBundleContent?.contentType === 'BASE64') {
+      return Buffer.from(secretContent, 'base64').toString('utf8');
     }
-    return response.secretBundle.secretBundleContent.content;
+    return secretContent;
   }
 
   async listSSHKeys(): Promise<keyManagement.models.KeySummary[]> {
@@ -299,7 +303,7 @@ export class OCIConnect {
       };
 
     // Send request to the Client.
-    const getInstanceConfigurationResponse =
+    const getInstanceConfigurationResponse: core.responses.GetInstanceConfigurationResponse =
       await this.clientManagement.getInstanceConfiguration(
         getInstanceConfigurationRequest
       );
@@ -310,21 +314,33 @@ export class OCIConnect {
     instanceConfigurationId: string,
     publicKey: string
   ): Promise<core.models.Instance> {
-    const instanceConfig = await this.getInstanceConfig(
-      instanceConfigurationId
-    );
-    const { instanceDetails } = instanceConfig;
-    instanceConfig.instanceDetails.launchDetails.metadata = {
+    /**
+     * Launches an instance from the given instance configuration id.
+     * @param instanceConfigurationId: The OCID of the instance configuration.
+     * @param publicKey: The public key that will be used to access the instance.
+     * @return instance: The instance that was launched.
+     * @throws Exception
+     * Example:
+     * const instance = await launchInstanceFromConfig(instanceConfigurationId, publicKey);
+     * console.log('Instance Launched: ', instance);
+     * */
+    const instanceConfig: core.models.InstanceConfiguration =
+      await this.getInstanceConfig(instanceConfigurationId);
+
+    const instanceDetails: core.models.ComputeInstanceDetails =
+      instanceConfig.instanceDetails as core.models.ComputeInstanceDetails;
+
+    instanceDetails!.launchDetails!.metadata = {
       ssh_authorized_keys: `ssh-rsa ${publicKey}`,
     };
+
     const request: core.requests.LaunchInstanceConfigurationRequest = {
       instanceConfigurationId,
       instanceConfiguration: instanceDetails,
     };
-    const response = await this.clientManagement.launchInstanceConfiguration(
-      request
-    );
-    return response;
+    const response: core.responses.LaunchInstanceConfigurationResponse =
+      await this.clientManagement.launchInstanceConfiguration(request);
+    return response.instance;
   }
 
   // User management functions
@@ -353,8 +369,9 @@ export class OCIConnect {
       identityProviderId:
         'ocid1.saml2idp.oc1..aaaaaaaace5zv3qqzb6ycrvbvmto4uhjyfmsrqkveiq4pa5rvh7jcjg7fpzq',
     };
-    const response = await this.identityClient.listUsers(request);
-    for (let i = 0; i < response.items.length; i++) {
+    const response: identity.responses.ListUsersResponse =
+      await this.identityClient.listUsers(request);
+    for (let i = 0; i < response.items.length; i += 1) {
       if (response.items[i].description === user) {
         this.OCID = response.items[i].id;
         return response.items[i].id;
@@ -365,14 +382,15 @@ export class OCIConnect {
 
   // Compartment management functions
   // Check if compartment exists
-  async findUserCompartment(profileName) {
+  async findUserCompartment(profileName: string) {
     const compartmentName = profileName.replace(/[^\w-]/g, '');
     const request: identity.requests.ListCompartmentsRequest = {
       compartmentId:
         'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
       name: compartmentName,
     };
-    const response = await this.identityClient.listCompartments(request);
+    const response: identity.responses.ListCompartmentsResponse =
+      await this.identityClient.listCompartments(request);
     if (response.items.length === 0) {
       return undefined;
     }
@@ -380,7 +398,7 @@ export class OCIConnect {
   }
 
   // Create a new compartment
-  async createCompartment(profileName) {
+  async createCompartment(profileName: string) {
     const compartmentName = `${profileName}`.replace(/[^\w-]/g, '');
     const compartment: identity.models.CreateCompartmentDetails = {
       compartmentId:
@@ -391,7 +409,8 @@ export class OCIConnect {
     const request: identity.requests.CreateCompartmentRequest = {
       createCompartmentDetails: compartment,
     };
-    const response = await this.identityClient.createCompartment(request);
+    const response: identity.responses.CreateCompartmentResponse =
+      await this.identityClient.createCompartment(request);
     return response;
   }
 
@@ -404,39 +423,8 @@ export class OCIConnect {
         'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
       name: groupName,
     };
-    const response = await this.identityClient.listGroups(request);
-    if (response.items.length > 0) {
-      return true;
-    }
-    return false;
-  }
-
-  // Create a new group
-  async createGroup() {
-    const groupName = this.profileName;
-    const group: identity.models.CreateGroupDetails = {
-      compartmentId:
-        'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
-      name: groupName,
-      description: `Nephos generated group for ${groupName}`,
-    };
-    const request: identity.requests.CreateGroupRequest = {
-      createGroupDetails: group,
-    };
-    const response = await this.identityClient.createGroup(request);
-    return response;
-  }
-
-  // Policy management functions
-  // Check if policy exists
-  async policyExists() {
-    const policyName = this.profileName;
-    const request: identity.requests.ListPoliciesRequest = {
-      compartmentId:
-        'ocid1.compartment.oc1..aaaaaaaaeopg7o4tp3wo5lyv3o3i5vsi5zwndt5bip2uwrvbvzegnhvvvb2q',
-      name: policyName,
-    };
-    const response = await this.identityClient.listPolicies(request);
+    const response: identity.responses.ListGroupsResponse =
+      await this.identityClient.listGroups(request);
     if (response.items.length > 0) {
       return true;
     }
@@ -479,7 +467,11 @@ export function PofileExists(profileName: string) {
   }
 }
 
-export async function GenerateKeys() {
+export async function GenerateKeys(): Promise<{
+  publicKey: string;
+  privateKey: string;
+  fingerprint: string;
+}> {
   // generate key and fingerprint
   return new Promise((resolve, reject) => {
     crypto.generateKeyPair(

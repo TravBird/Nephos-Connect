@@ -61,7 +61,9 @@ async function loginRequest(
           }
           // login post setup failed
           console.log('Login post setup failed');
-          setLoadingMessageState('Error: Login failed, please restart device and try again');
+          setLoadingMessageState(
+            'Error: Login failed, please restart device and try again'
+          );
           return;
         }
         // additional setup required
@@ -95,18 +97,24 @@ async function loginRequest(
             }
             // login post setup failed
             console.log('Login post setup failed');
-            setLoadingMessageState('Error: Login failed, please restart device and try again');
+            setLoadingMessageState(
+              'Error: Login failed, please restart device and try again'
+            );
             return;
           }
           // setup failed
           console.log('Account setup failed');
-          setLoadingMessageState('Error: Account setup failed, please restart device and try again');
+          setLoadingMessageState(
+            'Error: Account setup failed, please restart device and try again'
+          );
           return;
         }
       }
       // local setup failed
       console.log('Local setup failed');
-      setLoadingMessageState('Error: Local config setup failed, please restart device and try again');
+      setLoadingMessageState(
+        'Error: Local config setup failed, please restart device and try again'
+      );
       return;
     }
     // account setup required
@@ -138,18 +146,24 @@ async function loginRequest(
         }
         // login post setup failed
         console.log('Login post setup failed');
-        setLoadingMessageState('Error: Login failed, please restart device and try again');
+        setLoadingMessageState(
+          'Error: Login failed, please restart device and try again'
+        );
         return;
       }
       // setup failed
       console.log('Account setup failed');
-      setLoadingMessageState('Error: Account setup failed, please restart device and try again');
+      setLoadingMessageState(
+        'Error: Account setup failed, please restart device and try again'
+      );
       return;
     }
   }
   // login failed
   console.log('Login failed');
-  setLoadingMessageState('Error: Login failed, please restart device and try again');
+  setLoadingMessageState(
+    'Error: Login failed, please restart device and try again'
+  );
 }
 
 export function Home({

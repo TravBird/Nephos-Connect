@@ -8,8 +8,7 @@ import {
 import { useEffect, useState } from 'react';
 import './App.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSignal, faSignal5, faWifi } from '@fortawesome/free-solid-svg-icons';
-import { sign } from 'crypto';
+import { faWifi } from '@fortawesome/free-solid-svg-icons';
 import signal0 from '../../assets/signal/0signal.png';
 import signal1 from '../../assets/signal/1signal.png';
 import signal2 from '../../assets/signal/2signal.png';
