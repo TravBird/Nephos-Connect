@@ -39,17 +39,43 @@ ipcMain.handle('shutdown', () => {
   shutdown.shutdown();
 });
 
-function launchVNCSoftware() {
-  // To be confirmed with NephOS path locaiton
-  const vncPath = path.join(
-    app.getAppPath(),
-    '..',
-    'resources',
-    'bin',
-    'vnc',
-    'vncviewer.exe'
-  );
-  shell.openPath(vncPath);
+function launchVNCSoftware(ipAddress: string, sshKey: string) {
+  // Testing function to launch VNC software
+
+  // find TigerVNC vncviewer location on linux, mac and windows
+  let vncPath = '';
+  if (os.platform() === 'win32') {
+    vncPath = path.join('C:', 'Program Files', 'TigerVNC', 'vncviewer.exe');
+  } else if (os.platform() === 'darwin') {
+    vncPath = path.join(
+      '/',
+      'Applications',
+      'TigerVNC Viewer.app',
+      'Contents',
+      'MacOS',
+      'vncviewer'
+    );
+  } else {
+    vncPath = path.join('/', 'usr', 'bin', 'vncviewer');
+  }
+
+  // Connect to VNC with IP address and SSH key
+  const vnc = require('child_process').spawn(vncPath, [
+    ipAddress,
+    '-via',
+    `root@${ipAddress}`,
+    '-viaKey',
+    sshKey,
+  ]);
+  vnc.stdout.on('data', (data: any) => {
+    console.log(`stdout: ${data}`);
+  });
+  vnc.stderr.on('data', (data: any) => {
+    console.error(`stderr: ${data}`);
+  });
+  vnc.on('close', (code: any) => {
+    console.log(`child process exited with code ${code}`);
+  });
 }
 
 async function loginWindowChange(
@@ -130,7 +156,12 @@ async function firstTimeUserSetup(): Promise<{ success: string }> {
 async function setupLocalUser(
   name: string,
   userOCID: string
-): Promise<{ success: string; setupRequired: string; message: string }> {
+): Promise<{
+  success: string;
+  setupRequired: string;
+  message: string;
+  error?: any;
+}> {
   console.log('Generating keys...');
   const result = await GenerateKeys();
   const { publicKey, privateKey, fingerprint }: any = result;
@@ -138,13 +169,9 @@ async function setupLocalUser(
     // generate key and fingerprint
     // upload generated keys to OCI
     console.log('Keys generated, uploading to OCI...');
-    try {
-      ociConnectAdmin.addApiKeyToUser(publicKey, userOCID);
-      console.log('Keys uploaded to OCI successfully');
-    } catch (error) {
-      console.log(error);
-      throw error;
-    }
+    await ociConnectAdmin.addApiKeyToUser(publicKey, userOCID);
+    console.log('Keys uploaded to OCI successfully');
+
     // write key to file
     console.log('Writing key to file...');
     const keyName = name.replace(/[^\w-]/g, '');
@@ -178,9 +205,9 @@ async function setupLocalUser(
       setupRequired: 'true',
       message: 'account',
     };
-  } catch (error) {
+  } catch (error: any) {
     console.log(error);
-    return { success: 'false', setupRequired: 'false', message: '' };
+    return { success: 'false', setupRequired: 'false', message: '', error };
   }
 }
 
@@ -255,9 +282,9 @@ ipcMain.handle('oci-login-sso', async () => {
   return { success: 'false' };
 });
 
-ipcMain.handle('post-setup-login', async (event, name) => {
+ipcMain.handle('post-setup-login', async () => {
   console.log('Post Setup Login');
-  const loginResponse = await loginCheck(name);
+  const loginResponse = await loginCheck(newUserName);
   if (loginResponse.success === 'true') {
     return loginResponse;
   }
@@ -265,33 +292,45 @@ ipcMain.handle('post-setup-login', async (event, name) => {
 });
 
 ipcMain.handle('setup-local', async () => {
-  const userOCID = await ociConnectAdmin.getUserOCID(newUserName);
-  console.log('User OCID:', userOCID);
-  const result = await setupLocalUser(newUserName, userOCID);
-  console.log('Setup Local Result:', result);
+  try {
+    const userOCID = await ociConnectAdmin.getUserOCID(newUserName);
+    console.log('User OCID:', userOCID);
+    const result = await setupLocalUser(newUserName, userOCID);
+    console.log('Setup Local Result:', result);
 
-  if (result.success === 'true') {
-    console.log('User setup successfully');
-    if (result.setupRequired === 'false') {
+    if (result.success === 'true') {
+      console.log('User setup successfully');
+      if (result.setupRequired === 'false') {
+        return {
+          success: 'true',
+          setupRequired: 'false',
+          message: '',
+        };
+      }
+      // need to create ociConnectUser here
+      ociConnectUser = new OCIConnect(newUserName);
       return {
         success: 'true',
-        setupRequired: 'false',
+        setupRequired: 'true',
+        message: 'account',
       };
     }
-    // need to create ociConnectUser here
-    ociConnectUser = new OCIConnect(newUserName);
+    console.log('User setup failed');
     return {
-      success: 'true',
+      success: 'false',
       setupRequired: 'true',
-      message: 'account',
+      message: 'local',
+      error: result.error.message,
+    };
+  } catch (error: any) {
+    console.log(error);
+    return {
+      success: 'false',
+      setupRequired: 'true',
+      message: '',
+      error: error.message,
     };
   }
-  console.log('User setup failed');
-  return {
-    success: 'false',
-    setupRequired: 'true',
-    message: 'local',
-  };
 });
 
 ipcMain.handle('setup-account', async () => {
@@ -335,40 +374,122 @@ ipcMain.handle('oci-register-sso', async () => {
 // Create new system
 ipcMain.handle(
   'create-system',
-  async (event, { instanceConfigurationId, displayName }) => {
-    console.log('create-system received');
-    console.log('instanceConfigurationId: ', instanceConfigurationId);
+  async (event, { displayName, instanceConfigurationId }) => {
+    // generate keys
     try {
-      // Get user name and create key name
-      const userName = ociConnectUser.getProfileName();
-      // Remove unsupported characters from key name
-      const keyName = `${userName}-${displayName}`.replace(/[^\w-]/g, '');
-      console.log('keyName: ', keyName);
-      // generate key pair
+      const secretName =
+        `${ociConnectUser.getProfileName()}-${displayName}`.replace(
+          /[^\w-]/g,
+          ''
+        );
       const { publicKey, privateKey } = await GenerateKeys();
 
-      // Upload SSH Private Key to OCI Secret Vault
-      const secret = await ociConnectAdmin.createSecret(privateKey, keyName);
-
-      // Use public key to create new isntance in OCI
       const system = await ociConnectUser.launchInstanceFromConfig(
         instanceConfigurationId,
+        displayName,
         publicKey
       );
 
-      return { success: 'true', system };
+      // upload to OCI Vault
+      const secret = await ociConnectUser.createSecret(privateKey, secretName);
+
+      event.sender.send('start-system', { success: 'true', system, error: '' });
+
+      // Check if system is up by polling api every 5 seconds
+      const interval = setInterval(async () => {
+        const systemStatus = await ociConnectUser.instanceStatus(system.id);
+        console.log('System Status: ', systemStatus);
+        if (systemStatus === 'RUNNING') {
+          clearInterval(interval);
+          // inform renderer process that system is up
+          event.sender.send('start-system', {
+            success: 'true',
+            system,
+            error: '',
+          });
+          // get system IP
+          const systemIP = await ociConnectUser.getInstanceIP(system.id);
+          // connect to system
+          launchVNCSoftware(systemIP, privateKey);
+          return {
+            success: 'true',
+            message: 'Connecting to system',
+            error: '',
+          };
+        }
+      }, 5000);
+
+      // return public key
+      return { success: 'true', system, error: '' };
     } catch (error: any) {
-      const { message } = error;
-      console.log('Error creating system: ', error);
-      return { success: 'false', message };
+      console.log(
+        'Exception in create-system icpMain handler in main.ts file: ',
+        error
+      );
+      if (error.statusCode === 409) {
+        return {
+          success: 'false',
+          system: null,
+          error: 'System Names must be unique! \n Please try again.',
+        };
+      }
+      return { success: 'false', system: null, error: error.message };
     }
   }
 );
+
 // start and stop OCI VM System
-ipcMain.handle('start-system', async (event, arg) => {
-  console.log('start-system received');
-  return ociConnectUser.startInstance(arg);
-});
+ipcMain.handle(
+  'start-system',
+  async (event, { displayName, instanceId }: any) => {
+    console.log('start-system received');
+    // Get systems Private Key to connect with
+    try {
+      const secretName =
+        `${ociConnectUser.getProfileName()}-${displayName}`.replace(
+          /[^\w-]/g,
+          ''
+        );
+      const privateKey = await ociConnectUser.getSecretContent(secretName);
+
+      // start system
+      const system = ociConnectUser.startInstance(instanceId);
+
+      event.sender.send('start-system', { success: 'true', system, error: '' });
+
+      // Check if system is up by polling api every 5 seconds
+      const interval = setInterval(async () => {
+        const systemStatus = await ociConnectUser.instanceStatus(instanceId);
+        console.log('System Status: ', systemStatus);
+        if (systemStatus === 'RUNNING') {
+          clearInterval(interval);
+          // inform renderer process that system is up
+          event.sender.send('start-system', {
+            success: 'true',
+            system,
+            error: '',
+          });
+          // get system IP
+          const systemIP = await ociConnectUser.getInstanceIP(instanceId);
+          // connect to system
+          launchVNCSoftware(systemIP, privateKey);
+          return {
+            success: 'true',
+            message: 'Connecting to system',
+            error: '',
+          };
+        }
+      }, 5000);
+    } catch (error: any) {
+      console.log(
+        'Exception in start-system icpMain handler in main.ts file: ',
+        error
+      );
+      return { success: 'false', system: null, error };
+    }
+  }
+);
+
 ipcMain.handle('stop-system', async (event, arg) => {
   console.log('stop-system received');
   return ociConnectUser.stopInstance(arg);
@@ -409,43 +530,48 @@ ipcMain.handle('list-system-configs', async () => {
     return { success: 'false', error };
   }
 });
-
+/*
 // OCI Vault listeners
 // Create new SSH Key
 ipcMain.handle(
   'vault-create-ssh-key',
-  async (event, [compartmentId, displayName]) => {
-    console.log('vault-create-ssh-key received');
+  async (event, { displayName, instanceConfigurationId }) => {
+    // generate keys
     try {
-      // generate key pair
+      const secretName =
+        `${ociConnectUser.getProfileName()}-${displayName}`.replace(
+          /[^\w-]/g,
+          ''
+        );
       const { publicKey, privateKey } = await GenerateKeys();
 
-      // wrap private key in preparation for upload to OCI Vault
-      const wrappedPrivateKey = await WrapKey(publicKey, privateKey);
+      // upload to OCI Vault
+      const secret = await ociConnectUser.createSecret(privateKey, secretName);
 
-      // upload wrapped private key and public key to OCI Vault
-      const response = await ociConnectAdmin.importSSHKey(
-        compartmentId,
+      const system = await ociConnectUser.launchInstanceFromConfig(
+        instanceConfigurationId,
         displayName,
-        {
-          keyMaterial: wrappedPrivateKey,
-          wrappingAlgorithm: 'RSA_OAEP_AES_SHA256',
-        }
+        publicKey
       );
 
-      console.log('Key uploaded to OCI Vault: ', response);
-
-      // return public key to be used to create new instance
-      return { success: 'true', publicKey };
-    } catch (error) {
+      // return public key
+      return { success: 'true', system };
+    } catch (error: any) {
       console.log(
         'Exception in vault-create-ssh-key icpMain handler in main.ts file: ',
         error
       );
+      if (error.statusCode === 409) {
+        return {
+          success: 'false',
+          message: 'System Names must be unique! \n Please try again.',
+        };
+      }
       return { success: 'false', error };
     }
   }
 );
+*/
 
 // Get SSH Key from OCI Vault
 ipcMain.handle('vault-export-ssh-key', async (event, keyId: string) => {

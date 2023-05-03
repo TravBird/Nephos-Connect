@@ -37,6 +37,8 @@ export class OCIConnect {
 
   secretClient: secrets.SecretsClient;
 
+  virtualNetworkClient: core.VirtualNetworkClient;
+
   profileName: string;
 
   filePath: string;
@@ -89,6 +91,10 @@ export class OCIConnect {
       authenticationDetailsProvider: provider,
     });
 
+    this.virtualNetworkClient = new core.VirtualNetworkClient({
+      authenticationDetailsProvider: provider,
+    });
+
     this.keyClient.endpoint =
       'https://d5seppcnaaggq-management.kms.uk-london-1.oraclecloud.com';
 
@@ -133,15 +139,14 @@ export class OCIConnect {
     return response.items;
   }
 
-  async startInstance(
-    instanceId: string
-  ): Promise<responses.InstanceActionResponse> {
+  async startInstance(instanceId: string): Promise<core.models.Instance> {
     const request: core.requests.InstanceActionRequest = {
       instanceId,
       action: core.requests.InstanceActionRequest.Action.Start,
     };
 
-    const response = await this.computeClient.instanceAction(request);
+    const response = (await this.computeClient.instanceAction(request))
+      .instance;
     return response;
   }
 
@@ -156,6 +161,81 @@ export class OCIConnect {
     const response: core.responses.InstanceActionResponse =
       await this.computeClient.instanceAction(request);
     return response;
+  }
+
+  async instanceStatus(instanceId: string): Promise<string> {
+    /**
+     * Returns the status of the instance. Status can be:
+     * - PROVISIONING
+     * - RUNNING
+     * - STARTING
+     * - STOPPING
+     * - STOPPED
+     * - CREATING_IMAGE
+     * - TERMINATING
+     * - TERMINATED
+     * @param instanceId
+     * @returns string
+     * @example
+     * const instanceStatus = await instanceStatus(instanceId);
+     */
+    const request: core.requests.GetInstanceRequest = {
+      instanceId,
+    };
+
+    const response: core.responses.GetInstanceResponse =
+      await this.computeClient.getInstance(request);
+    return response.instance.lifecycleState;
+  }
+
+  async getInstanceIP(instanceId: string): Promise<string> {
+    /**
+     * Returns the public IP of the instance
+     * @param instanceId
+     * @returns string
+     * @example
+     * const instanceIP = await getInstanceIP(instanceId);
+     * console.log(instanceIP);
+     */
+    // list VNIC attachments
+
+    const request: core.requests.ListVnicAttachmentsRequest = {
+      compartmentId: this.userCompartment,
+      instanceId,
+    };
+
+    const response: core.responses.ListVnicAttachmentsResponse =
+      await this.computeClient.listVnicAttachments(request);
+
+    console.log(response);
+    console.log(response.items[0]);
+
+    if (response.items.length === 0) {
+      throw new Error('VNIC not found');
+    }
+    if (response.items.length > 1) {
+      throw new Error('More than one VNIC found');
+    }
+    const { vnicId } = response.items[0];
+
+    if (!vnicId) {
+      throw new Error('VNIC ID not found');
+    }
+    // get VNIC with the OCID
+    const vnicRequest: core.requests.GetVnicRequest = {
+      vnicId,
+    };
+
+    const vnicResponse: core.responses.GetVnicResponse =
+      await this.virtualNetworkClient.getVnic(vnicRequest);
+
+    const { publicIp } = vnicResponse.vnic;
+
+    if (!publicIp) {
+      throw new Error('Public IP not found');
+    }
+
+    return publicIp;
   }
 
   // Teriminate instance
@@ -312,11 +392,13 @@ export class OCIConnect {
 
   async launchInstanceFromConfig(
     instanceConfigurationId: string,
+    displayName: string,
     publicKey: string
   ): Promise<core.models.Instance> {
     /**
      * Launches an instance from the given instance configuration id.
      * @param instanceConfigurationId: The OCID of the instance configuration.
+     * @param displayName: The display name of the instance that will be launched.
      * @param publicKey: The public key that will be used to access the instance.
      * @return instance: The instance that was launched.
      * @throws Exception
@@ -330,21 +412,32 @@ export class OCIConnect {
     const instanceDetails: core.models.ComputeInstanceDetails =
       instanceConfig.instanceDetails as core.models.ComputeInstanceDetails;
 
+    instanceDetails!.launchDetails!.displayName = displayName;
+
+    const b64PublicKey = Buffer.from(publicKey, 'utf8').toString('base64');
+    console.log('Metadata', instanceDetails.launchDetails.metadata);
+
     instanceDetails!.launchDetails!.metadata = {
-      ssh_authorized_keys: `ssh-rsa ${publicKey}`,
+      ssh_authorized_keys: `ssh-rsa ${b64PublicKey}`,
     };
 
+    instanceDetails!.launchDetails!.compartmentId = this.userCompartment;
+ç
     const request: core.requests.LaunchInstanceConfigurationRequest = {
       instanceConfigurationId,
       instanceConfiguration: instanceDetails,
     };
+    console.log('Request: ', request);
     const response: core.responses.LaunchInstanceConfigurationResponse =
       await this.clientManagement.launchInstanceConfiguration(request);
     return response.instance;
   }
 
   // User management functions
-  async addApiKeyToUser(key: string, user: string) {
+  async addApiKeyToUser(
+    key: string,
+    user: string
+  ): Promise<identity.models.ApiKey> {
     try {
       const apiKey: identity.models.CreateApiKeyDetails = {
         key,
@@ -355,7 +448,7 @@ export class OCIConnect {
       };
       const response = await this.identityClient.uploadApiKey(request);
 
-      return response;
+      return response.apiKey;
     } catch (error) {
       console.log('Error in addApiKeyToUser ', error);
       throw error;
@@ -382,7 +475,9 @@ export class OCIConnect {
 
   // Compartment management functions
   // Check if compartment exists
-  async findUserCompartment(profileName: string) {
+  async findUserCompartment(
+    profileName: string
+  ): Promise<identity.models.Compartment | undefined> {
     const compartmentName = profileName.replace(/[^\w-]/g, '');
     const request: identity.requests.ListCompartmentsRequest = {
       compartmentId:
@@ -398,7 +493,9 @@ export class OCIConnect {
   }
 
   // Create a new compartment
-  async createCompartment(profileName: string) {
+  async createCompartment(
+    profileName: string
+  ): Promise<identity.models.Compartment> {
     const compartmentName = `${profileName}`.replace(/[^\w-]/g, '');
     const compartment: identity.models.CreateCompartmentDetails = {
       compartmentId:
@@ -411,7 +508,7 @@ export class OCIConnect {
     };
     const response: identity.responses.CreateCompartmentResponse =
       await this.identityClient.createCompartment(request);
-    return response;
+    return response.compartment;
   }
 
   // Group management functions
@@ -440,7 +537,7 @@ export function CreateProfile(
   tenancy: string,
   region: string,
   KeyFile: string
-) {
+): boolean {
   const config = `\r\n[${userName}]
   user=${userOCID}\r
   fingerprint=${fingerprint}\r
@@ -455,7 +552,7 @@ export function CreateProfile(
 }
 
 // Checks if a profile exists in the config file
-export function PofileExists(profileName: string) {
+export function PofileExists(profileName: string): boolean {
   try {
     const test = new common.ConfigFileAuthenticationDetailsProvider(
       filePath,
@@ -506,7 +603,10 @@ export async function GenerateKeys(): Promise<{
   });
 }
 
-export async function DecryptWrappedKey(privateKey, encryptedKey) {
+export async function DecryptWrappedKey(
+  privateKey: string,
+  encryptedKey: string
+): Promise<string> {
   // Decode the encoded wrapped data and convert it to hexadecimal format.
   const buf = Buffer.from(encryptedKey, 'base64');
   const bufString = buf.toString('hex');

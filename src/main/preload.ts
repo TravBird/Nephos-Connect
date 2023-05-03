@@ -17,7 +17,7 @@ const electronHandler = {
       return result;
     },
     async post_setup_login(channel: 'post-setup-login', request: any) {
-      const result = await ipcRenderer.invoke(channel, request);
+      const result = await ipcRenderer.invoke(channel);
       return result;
     },
     async register_sso(channel: 'oci-register-sso') {
@@ -63,15 +63,8 @@ const electronHandler = {
     },
   },
   ipcRendererVault: {
-    async createSSHKey(
-      channel: 'vault-create-ssh-key',
-      compartmentID: string,
-      keyName: string
-    ) {
-      const result = await ipcRenderer.invoke(channel, [
-        compartmentID,
-        keyName,
-      ]);
+    async createSSHKey(channel: 'vault-create-ssh-key', keyName: string) {
+      const result = await ipcRenderer.invoke(channel, [keyName]);
       return result;
     },
     async exportSSHKey(channel: 'vault-export-ssh-key', request: any) {
