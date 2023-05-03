@@ -4,33 +4,6 @@ import { MemoryRouter as Router, useNavigate } from 'react-router-dom';
 import { SetStateAction, useEffect, useState } from 'react';
 import './App.css';
 
-function ErrorPopup({ message, setError }: any) {
-  return (
-    <div id="ErrorPopup">
-      <div className="ErrorPopupContent">
-        <span
-          className="CloseErrorPopup"
-          onClick={() => {
-            setError('');
-          }}
-        >
-          &times;
-        </span>
-        <h2>An error has occured!</h2>
-        <h3>{message}</h3>
-        {message.includes(
-          'required information to complete authentication was not provided or was incorrect'
-        ) ? (
-          <h3>
-            Please login again. If the problem persists, please contact a Nephos
-            Admin
-          </h3>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 function OpenSystemCreateButton({ setOpenNewSystemSelection }) {
   return (
     <button
@@ -141,20 +114,24 @@ async function createSystemRequest(
   displayName: string,
   setError: any
 ) {
-  const result = await window.electron.ipcRendererOCI.createSystem(
+  const system = await window.electron.ipcRendererOCI.createSystem(
     'create-system',
     instanceConfigurationId,
     displayName
   );
-  console.log(result);
-  if (result.success === 'true') {
-    console.log('Successfully created system');
-    return result;
-  }
-  console.log('Failed to create system: ', result.message);
-  setError(result.message);
 
-  return result;
+  if (system?.success === 'true') {
+    console.log('Successfully created system');
+    // dom some stuff
+    return;
+  }
+  if (system.error !== undefined) {
+    console.log('Failed to create system: ', system.error);
+    setError(system.error);
+    return;
+  }
+  console.log('Unexpected error creating system');
+  setError('Unexpected error creating system');
 }
 
 function CreateSystemButton({ selectedNewSystem, setError }: any) {
@@ -230,7 +207,7 @@ function ListSystem({ system, selected, setSelected }: any) {
           <input
             type="radio"
             checked={selected === system.displayName}
-            onChange={() => setSelected(system)}
+            onChange={() => setSelected(system.displayName)}
           />
           {system.displayName}
         </span>
@@ -277,28 +254,31 @@ function SysSelection({ systems, selected, setSelected }: any) {
   );
 }
 
-// needs to be looked at
-const startSystemRequest = (
-  request: string,
-  setError: any,
-  setAwaiting: any
-) => {
+async function startSystemRequest(selected, setError, setAwaiting) {
   setAwaiting(true);
-  startVM(request)
-    .then((result) => {
-      setAwaiting(false);
-      if (result === 'success') {
-        return true;
-      }
-      setError(true);
-      setError(result);
-      return false;
-    })
-    .catch((error) => {
-      setAwaiting(false);
-      setError(true);
-    });
-};
+  const result = await window.electron.ipcRendererOCI.startSystem(
+    'start-system',
+    selected
+  );
+  console.log(result);
+  if (result.success === 'true') {
+    console.log('Successfully started system');
+    setAwaiting(false);
+    return;
+  }
+  console.log('Error starting system');
+  if (result.error.status === 404) {
+    setError(
+      'Authentication or not found error, please relog and try again. \n If this error persists, please contact a Nephos administrator'
+    );
+  } else {
+    setError(result.error.message);
+  }
+
+  // issue here
+  setError(result.error);
+  setAwaiting(false);
+}
 
 function StartSystemButton({ selected, awaiting, setAwaiting, setError }: any) {
   return (
@@ -342,7 +322,7 @@ function LogoutButton(setError: SetStateAction<any>) {
   );
 }
 
-export default function MainMenu() {
+export default function MainMenu({ ErrorPopup, error, setError }) {
   const [systems, setSystems] = useState([{}]);
   const [selected, setSelected] = useState('');
   const [selectedNewSystem, setSelectedNewSystem] = useState({
@@ -350,8 +330,6 @@ export default function MainMenu() {
     displayName: '',
   });
   const [awaiting, setAwaiting] = useState(false);
-  const [error, setError] = useState('');
-
   const [openNewSystemSelection, setOpenNewSystemSelection] = useState(false);
 
   useEffect(() => {

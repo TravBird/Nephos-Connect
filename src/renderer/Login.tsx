@@ -10,7 +10,8 @@ async function loginRequest(
   onLoadingError,
   navigate,
   setInternet,
-  setLoadingMessageState
+  setLoadingMessageState,
+  setError
 ) {
   if (!navigator.onLine) {
     setInternet(false);
@@ -96,25 +97,43 @@ async function loginRequest(
               return;
             }
             // login post setup failed
+            if (
+              postLocalSetupLoginResult.error.includes('Api key limit has exceeded')
+            ) {
+              setError(
+                'Maximum number of devices (3) reached, please contact an administrator to remove a device'
+              );
+              onLoadingError();
+              return;
+            }
             console.log('Login post setup failed');
-            setLoadingMessageState(
+            setError(
               'Error: Login failed, please restart device and try again'
             );
-            return;
+            onLoadingError();
           }
           // setup failed
           console.log('Account setup failed');
-          setLoadingMessageState(
+          setError(
             'Error: Account setup failed, please restart device and try again'
           );
+          onLoadingError();
           return;
         }
       }
+      if (ociLocalSetupResult.error.includes('Api key limit has exceeded')) {
+        console.log('API key limit exceeded');
+        setError(
+          'Maximum number of devices (3) reached, please contact an administrator to remove a device'
+        );
+        onLoadingError();
+        return;
+      }
       // local setup failed
-      console.log('Local setup failed');
-      setLoadingMessageState(
+      setError(
         'Error: Local config setup failed, please restart device and try again'
       );
+      onLoadingError();
       return;
     }
     // account setup required
@@ -134,8 +153,7 @@ async function loginRequest(
         await new Promise((f) => setTimeout(f, 10000));
         const postSetupLoginResult =
           await window.electron.ipcRendererOCIauth.post_setup_login(
-            'post-setup-login',
-            ociLoginResult.userName
+            'post-setup-login'
           );
         if (postSetupLoginResult.success === 'true') {
           // login successful
@@ -146,24 +164,23 @@ async function loginRequest(
         }
         // login post setup failed
         console.log('Login post setup failed');
-        setLoadingMessageState(
-          'Error: Login failed, please restart device and try again'
-        );
+        setError('Error: Login failed, please restart device and try again');
+        onLoadingError();
         return;
       }
       // setup failed
       console.log('Account setup failed');
-      setLoadingMessageState(
+      setError(
         'Error: Account setup failed, please restart device and try again'
       );
+      onLoadingError();
       return;
     }
   }
   // login failed
   console.log('Login failed');
-  setLoadingMessageState(
-    'Error: Login failed, please restart device and try again'
-  );
+  setError('Error: Login failed, please restart device and try again');
+  onLoadingError();
 }
 
 export function Home({
@@ -175,6 +192,7 @@ export function Home({
   internet,
   setInternet,
   setLoadingMessageState,
+  setError,
 }) {
   const navigate = useNavigate();
   const [authenticated, setauthenticated] = useState(
@@ -212,7 +230,8 @@ export function Home({
                   onLoadingError,
                   navigate,
                   setInternet,
-                  setLoadingMessageState
+                  setLoadingMessageState,
+                  setError
                 )
               }
             >

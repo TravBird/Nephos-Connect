@@ -18,6 +18,39 @@ import signal5 from '../../assets/signal/max_signal.png';
 import { Home, Loading } from './Login';
 import MainMenu from './MainMenu';
 
+function ErrorPopup({ message, setError }: any) {
+  return (
+    <div id="ErrorPopup">
+      <div className="ErrorPopupContent">
+        <span
+          className="CloseErrorPopup"
+          onClick={() => {
+            setError('');
+          }}
+        >
+          &times;
+        </span>
+        {message === undefined ? (
+          <h2>An unexpected Error has occured!</h2>
+        ) : (
+          <>
+            <h2>An error has occured!</h2>
+            <h3>{message}</h3>
+            {message.includes(
+              'required information to complete authentication was not provided or was incorrect'
+            ) ? (
+              <h3>
+                Please login again. If the problem persists, please contact a
+                Nephos Admin
+              </h3>
+            ) : null}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 async function getWifiNetworks() {
   const result = await window.electron.ipcRendererInternet.getWifiNetworks(
     'get-wifi-networks'
@@ -135,7 +168,7 @@ function ListWifi({ network, selectedNetwork, setSelectedNetwork }) {
   );
 }
 
-function WifiSelection(selectedNetwork, setSelectedNetwork) {
+function WifiSelection({ selectedNetwork, setSelectedNetwork }) {
   const [networks, setNetworks] = useState([]);
 
   useEffect(() => {
@@ -172,7 +205,12 @@ function WifiSelection(selectedNetwork, setSelectedNetwork) {
   return <div className="Loader" />;
 }
 
-function WifiSettings({ setOpenWifiSettings, wifiNetworks, internet, setInternet }) {
+function WifiSettings({
+  setOpenWifiSettings,
+  wifiNetworks,
+  internet,
+  setInternet,
+}) {
   const [selectedNetwork, setSelectedNetwork] = useState('');
   setInternet(navigator.onLine);
   return (
@@ -194,7 +232,7 @@ function WifiSettings({ setOpenWifiSettings, wifiNetworks, internet, setInternet
   );
 }
 
-function LoginRegisterChoice() {
+function LoginRegisterChoice({ error, setError }: any) {
   const [activeState, setActiveState] = useState('Home');
   const authenticated = localStorage.getItem('authenticated');
   const navigate = useNavigate();
@@ -245,6 +283,7 @@ function LoginRegisterChoice() {
           <FontAwesomeIcon icon={faWifi} /> Wireless Settings
         </button>
       </div>
+      {error !== '' ? <ErrorPopup message={error} setError={setError} /> : null}
       <div className="LoginRegisterContainer">
         <h1>Welcome to Nephos!</h1>
         <Home
@@ -258,14 +297,14 @@ function LoginRegisterChoice() {
               'Setting up local configuration, please wait...'
             );
           }}
-          onLoadingError={(error: string) => {
-            setLoadingMessageState(
-              `Unfortunately there was an ${error} \n Please try again...`
-            );
+          onLoadingError={() => {
+            setActiveState('Home');
           }}
           internet={internet}
           setInternet={setInternet}
           setLoadingMessageState={setLoadingMessageState}
+          error={error}
+          setError={setError}
         />
         {openWifiSettings ? (
           <WifiSettings
@@ -285,11 +324,31 @@ function LoginRegisterChoice() {
 }
 
 export default function App() {
+  const [error, setError] = useState('');
+
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<LoginRegisterChoice />} />
-        <Route path="/home" element={<MainMenu />} />
+        <Route
+          path="/"
+          element={
+            <LoginRegisterChoice
+              ErrorPopup={ErrorPopup}
+              error={error}
+              setError={setError}
+            />
+          }
+        />
+        <Route
+          path="/home"
+          element={
+            <MainMenu
+              ErrorPopup={ErrorPopup}
+              error={error}
+              setError={setError}
+            />
+          }
+        />
       </Routes>
     </Router>
   );
