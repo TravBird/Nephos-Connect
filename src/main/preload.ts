@@ -30,8 +30,26 @@ const electronHandler = {
     },
   },
   ipcRendererOCI: {
-    async startSystem(channel: 'start-system', request: any) {
-      const result = ipcRenderer.invoke(channel, request);
+    async startSystem(
+      channel: 'start-system',
+      instanceConfigurationId: string,
+      displayName: string
+    ) {
+      const result = await ipcRenderer.invoke(channel, {
+        instanceConfigurationId,
+        displayName,
+      });
+      return result;
+    },
+    async reconnectSystem(
+      channel: 'reconnect-system',
+      instanceConfigurationId: string,
+      displayName: string
+    ) {
+      const result = await ipcRenderer.invoke(channel, {
+        instanceConfigurationId,
+        displayName,
+      });
       return result;
     },
     async stopSystem(channel: 'stop-system', request: any) {
@@ -60,6 +78,9 @@ const electronHandler = {
         displayName,
       });
       return result;
+    },
+    listenUpdate(channel: string, listener: any) {
+      ipcRenderer.on(channel, listener);
     },
   },
   ipcRendererVault: {
