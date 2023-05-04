@@ -7,6 +7,7 @@ import * as keyManagement from 'oci-keymanagement';
 import * as responses from 'oci-core/lib/response';
 import * as vault from 'oci-vault';
 import * as secrets from 'oci-secrets';
+import * as workrequests from 'oci-workrequests';
 import { LOG } from 'oci-sdk';
 import * as fs from 'fs';
 import os from 'os';
@@ -18,6 +19,8 @@ const bunLog = bunyan.createLogger({ name: 'OCIConnect', level: 'debug' });
 LOG.logger = bunLog;
 
 const crypto = require('crypto');
+const sshpk = require('sshpk');
+
 
 const filePath = `${os.homedir()}/.oci/config`;
 const keyPath = `${os.homedir()}/.oci/keys/`;
@@ -38,6 +41,8 @@ export class OCIConnect {
   secretClient: secrets.SecretsClient;
 
   virtualNetworkClient: core.VirtualNetworkClient;
+
+  workRequestClient: workrequests.WorkRequestClient;
 
   profileName: string;
 
@@ -95,6 +100,10 @@ export class OCIConnect {
       authenticationDetailsProvider: provider,
     });
 
+    this.workRequestClient = new workrequests.WorkRequestClient({
+      authenticationDetailsProvider: provider,
+    });
+
     this.keyClient.endpoint =
       'https://d5seppcnaaggq-management.kms.uk-london-1.oraclecloud.com';
 
@@ -126,6 +135,23 @@ export class OCIConnect {
 
   setUserCompartment(compartment: string) {
     this.userCompartment = compartment;
+  }
+
+  // Work Requests
+  async getWorkRequestStatus(workRequestId: string): Promise<string> {
+    /**
+     * Returns the status of a work request
+     * @param workRequestId
+     * @returns workRequest
+     * @example
+     * const workRequest = await getWorkRequest(workRequestId);
+     * console.log(workRequest);
+     * */
+    const request: workrequests.requests.GetWorkRequestRequest = {
+      workRequestId,
+    };
+    const response = await this.workRequestClient.getWorkRequest(request);
+    return response.workRequest.status;
   }
 
   // Instance functions
@@ -161,6 +187,32 @@ export class OCIConnect {
     const response: core.responses.InstanceActionResponse =
       await this.computeClient.instanceAction(request);
     return response;
+  }
+
+  async moveInstance(
+    instanceId: string,
+    compartmentId: string
+  ): Promise<string> {
+    /**
+     * Moves an instance to a different compartment
+     * @param instanceId
+     * @param compartmentId
+     * @returns opcWorkRequestId
+     * @example
+     * const workRequestId = await moveInstance(instanceId, compartmentId);
+     * const workRequest = await getWorkRequest(workRequestId);
+     * console.log(workRequest);
+     *  */
+    const request: core.requests.ChangeInstanceCompartmentRequest = {
+      instanceId,
+      changeInstanceCompartmentDetails: {
+        compartmentId,
+      },
+    };
+
+    const response: core.responses.ChangeInstanceCompartmentResponse =
+      await this.computeClient.changeInstanceCompartment(request);
+    return response.opcWorkRequestId;
   }
 
   async instanceStatus(instanceId: string): Promise<string> {
@@ -415,14 +467,11 @@ export class OCIConnect {
     instanceDetails!.launchDetails!.displayName = displayName;
 
     const b64PublicKey = Buffer.from(publicKey, 'utf8').toString('base64');
-    console.log('Metadata', instanceDetails.launchDetails.metadata);
 
     instanceDetails!.launchDetails!.metadata = {
       ssh_authorized_keys: `ssh-rsa ${b64PublicKey}`,
     };
 
-    instanceDetails!.launchDetails!.compartmentId = this.userCompartment;
-ç
     const request: core.requests.LaunchInstanceConfigurationRequest = {
       instanceConfigurationId,
       instanceConfiguration: instanceDetails,
