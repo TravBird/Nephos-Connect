@@ -114,37 +114,59 @@ async function createSystemRequest(
   displayName: string,
   setError: any
 ) {
+  console.log('Creating system: ', instanceConfigurationId);
+  console.log('Display name: ', displayName);
+  // make request to create system
   const system = await window.electron.ipcRendererOCI.createSystem(
     'create-system',
     instanceConfigurationId,
     displayName
   );
 
-  if (system?.success === 'true') {
-    console.log('Successfully created system');
-    // dom some stuff
+  if (system.success !== 'true') {
+    setError(system.error.message);
     return;
   }
-  if (system.error !== undefined) {
-    console.log('Failed to create system: ', system.error);
-    setError(system.error);
-    return;
-  }
-  console.log('Unexpected error creating system');
-  setError('Unexpected error creating system');
+
+  // listen for updates
+  window.electron.ipcRendererOCI.listenUpdate(
+    'create-system-update',
+    (event, message) => {
+      console.log('Hello! :D');
+      console.log(message);
+      if (message.status === 'success') {
+        // setLoading(message.message);
+        console.log(message.message);
+      }
+      if (message.status === 'error') {
+        // setLoading(message.message);
+        setError(message.error);
+      }
+    }
+  );
 }
 
-function CreateSystemButton({ selectedNewSystem, setError }: any) {
-  console.log('creating system with id and display name: ');
+function CreateSystemButton({
+  selectedNewSystem,
+  systemDisplayName,
+  setError,
+}: any) {
+  console.log(systemDisplayName);
+  let name = '';
   const { id, displayName } = selectedNewSystem;
+  if (systemDisplayName === '') {
+    name = displayName;
+  } else {
+    name = systemDisplayName;
+  }
   return (
     <button
       type="button"
-      onClick={() => createSystemRequest(id, displayName, setError)}
+      onClick={() => createSystemRequest(id, name, setError)}
       // id={selected}
       // disabled={awaiting}
     >
-      Create Selected new System?
+      Create Selected new System? : {name}
     </button>
   );
 }
@@ -173,10 +195,26 @@ function CreateSystemForm({
           setError={setError}
         />
         {selectedNewSystem.id !== '' ? (
-          <CreateSystemButton
-            selectedNewSystem={selectedNewSystem}
-            setError={setError}
-          />
+          <>
+            <h4>
+              You can change the Systems name below, or leave it default. Note:
+              the name must be unique!
+            </h4>
+            <input
+              type="text"
+              id="displayName"
+              name="displayName"
+              placeholder={selectedNewSystem.displayName}
+            />
+            <CreateSystemButton
+              selectedNewSystem={selectedNewSystem}
+              systemDisplayName={
+                (document.getElementById('displayName') as HTMLInputElement)
+                  .value
+              }
+              setError={setError}
+            />
+          </>
         ) : null}
       </div>
     </div>
@@ -199,17 +237,18 @@ async function getUserSystems(setError) {
 
 function ListSystem({ system, selected, setSelected }: any) {
   const [open, setOpen] = useState(false);
-
+  const { id, displayName, lifecycleState } = system;
+  console.log(selected);
   return (
-    <li className="ConfigInfo" key={system.id}>
+    <li className="ConfigInfo" key={id}>
       <div className="InitialInfo">
-        <span id={system.displayName}>
+        <span id={displayName}>
           <input
             type="radio"
-            checked={selected === system.displayName}
-            onChange={() => setSelected(system.displayName)}
+            checked={selected.displayName === displayName}
+            onChange={() => setSelected({ id, displayName, lifecycleState })}
           />
-          {system.displayName}
+          {displayName}: {lifecycleState}
         </span>
         <span>
           <button
@@ -254,41 +293,117 @@ function SysSelection({ systems, selected, setSelected }: any) {
   );
 }
 
-async function startSystemRequest(selected, setError, setAwaiting) {
-  setAwaiting(true);
-  const result = await window.electron.ipcRendererOCI.startSystem(
+async function startSystemRequest(
+  instanceConfigurationId,
+  displayName,
+  setError,
+  setAwaiting
+) {
+  console.log('start system request: ', instanceConfigurationId, displayName);
+  // setAwaiting(true);
+  const system = await window.electron.ipcRendererOCI.startSystem(
     'start-system',
-    selected
+    instanceConfigurationId,
+    displayName
   );
-  console.log(result);
-  if (result.success === 'true') {
-    console.log('Successfully started system');
-    setAwaiting(false);
-    return;
-  }
-  console.log('Error starting system');
-  if (result.error.status === 404) {
-    setError(
-      'Authentication or not found error, please relog and try again. \n If this error persists, please contact a Nephos administrator'
-    );
-  } else {
-    setError(result.error.message);
-  }
+  console.log(system);
+  // listen for updates
+  window.electron.ipcRendererOCI.listenUpdate(
+    'start-system-update',
+    (event, message) => {
+      console.log('Hello! :D');
+      console.log(message);
+      if (message.status === 'success') {
+        // setLoading(message.message);
+        console.log(message.message);
+      }
+      if (message.status === 'error') {
+        // setLoading(message.message);
+        setError(message.error);
+      }
+    }
+  );
+}
 
-  // issue here
-  setError(result.error);
-  setAwaiting(false);
+async function reconnectSystemRequest(
+  instanceConfigurationId,
+  displayName,
+  setError,
+  setAwaiting
+) {
+  console.log(
+    'reconnect system request: ',
+    instanceConfigurationId,
+    displayName
+  );
+  // setAwaiting(true);
+  const system = await window.electron.ipcRendererOCI.reconnectSystem(
+    'reconnect-system',
+    instanceConfigurationId,
+    displayName
+  );
+  console.log(system);
+  // listen for updates
+  window.electron.ipcRendererOCI.listenUpdate(
+    'reconnect-system-update',
+    (event, message) => {
+      console.log('Hello! :D');
+      console.log(message);
+      if (message.status === 'success') {
+        // setLoading(message.message);
+        console.log(message.message);
+      }
+      if (message.status === 'error') {
+        // setLoading(message.message);
+        setError(message.error);
+      }
+    }
+  );
 }
 
 function StartSystemButton({ selected, awaiting, setAwaiting, setError }: any) {
+  console.log(selected.id);
   return (
     <button
       type="button"
-      onClick={() => startSystemRequest(selected, setError, setAwaiting)}
-      id={selected}
+      onClick={() =>
+        startSystemRequest(
+          selected.id,
+          selected.displayName,
+          setError,
+          setAwaiting
+        )
+      }
+      id={selected.id}
       disabled={awaiting}
     >
-      Start {selected}?
+      Start {selected.displayName}?
+    </button>
+  );
+}
+
+function ReconnectSystemButton({
+  selected,
+  awaiting,
+  setAwaiting,
+  setError,
+}: any) {
+  console.log(selected.id);
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        startSystemRequest(
+          selected.id,
+          selected.displayName,
+          setError,
+          setAwaiting
+        )
+      }
+      id={selected.id}
+      disabled={awaiting}
+    >
+      Reconnect to {selected.displayName}?
     </button>
   );
 }
@@ -324,7 +439,11 @@ function LogoutButton(setError: SetStateAction<any>) {
 
 export default function MainMenu({ ErrorPopup, error, setError }) {
   const [systems, setSystems] = useState([{}]);
-  const [selected, setSelected] = useState('');
+  const [selected, setSelected] = useState({
+    id: '',
+    displayName: '',
+    lifecycleState: '',
+  });
   const [selectedNewSystem, setSelectedNewSystem] = useState({
     id: '',
     displayName: '',
@@ -353,7 +472,15 @@ export default function MainMenu({ ErrorPopup, error, setError }) {
           setSelected={setSelected}
           setError={setError}
         />
-        {selected !== '' ? (
+        {selected.id !== '' && selected.lifecycleState === 'RUNNING' ? (
+          <ReconnectSystemButton
+            selected={selected}
+            awaiting={awaiting}
+            setAwaiting={setAwaiting}
+            setError={setError}
+          />
+        ) : null}
+        {selected.id !== '' && selected.lifecycleState !== 'RUNNING' ? (
           <StartSystemButton
             selected={selected}
             awaiting={awaiting}
