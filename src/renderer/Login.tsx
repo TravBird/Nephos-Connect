@@ -193,7 +193,7 @@ export function Home({
   setInternet,
   setLoadingMessageState,
   setError,
-}) {
+}: any) {
   const navigate = useNavigate();
   const [authenticated, setauthenticated] = useState(
     localStorage.getItem(localStorage.getItem('authenticated') || 'false')

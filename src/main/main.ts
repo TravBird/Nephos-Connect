@@ -6,6 +6,7 @@ import jwtDecode from 'jwt-decode';
 import os from 'os';
 import fs from 'fs';
 import { createTunnel } from 'tunnel-ssh';
+import { stringify } from 'querystring';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import IDCSAuth from './idcs_auth';
@@ -14,10 +15,10 @@ import {
   CreateProfile,
   PofileExists,
   GenerateKeys,
-  DecryptWrappedKey,
 } from './oci_connect';
 
 const sshpk = require('sshpk');
+const forge = require('node-forge');
 
 const { URL } = require('url');
 const shutdown = require('electron-shutdown-command');
@@ -44,70 +45,85 @@ ipcMain.handle('shutdown', () => {
 
 async function launchVNCSoftware(ipAddress: string, sshKey: string) {
   // Testing function to launch VNC software
-  console.log(sshKey);
-  console.log(sshpk.PrivateKey.isPrivateKey(sshKey));
-  const pemKey = sshpk.parsePrivateKey(sshKey, 'pem');
-  const sshRsa = pemKey.toString('ssh');
-  console.log(sshpk.PrivateKey.isPrivateKey(sshRsa));
-  console.log(sshRsa);
+  try {
+    console.log(sshKey);
+    const pemKey = sshpk.parsePrivateKey(sshKey, 'auto');
+    const sshRsa = pemKey.toString('pkcs1');
+    console.log(sshRsa);
 
-  // set up ssh tunnel
-  const port = 5901;
+    const pemKey2 = forge.pki.privateKeyFromPem(sshKey);
+    const sshKey2 = forge.ssh.privateKeyToOpenSSH(pemKey2);
+    console.log(sshKey2);
 
-  const tunnelOptions = {
-    autoClose: false,
-  };
-  const serverOptions = {
-    port,
-  };
-  const sshOptions = {
-    host: ipAddress,
-    username: 'ubuntu',
-    port: 22,
-    privateKey: sshRsa,
-  };
-  const forwardOptions = {
-    srcAddr: '0.0.0.0',
-    srcPort: port,
-    dstAddr: '127.0.0.1',
-    dstPort: port,
-  };
+    // set up ssh tunnel
+    const port = 5901;
 
-  const [server, conn] = await createTunnel(
-    tunnelOptions,
-    serverOptions,
-    sshOptions,
-    forwardOptions
-  );
+    const tunnelOptions = {
+      autoClose: false,
+    };
+    const serverOptions = {
+      port,
+    };
+    const sshOptions = {
+      host: ipAddress,
+      username: 'ubuntu',
+      port: 22,
+      privateKey: sshKey2,
+    };
+    const forwardOptions = {
+      srcAddr: '0.0.0.0',
+      srcPort: port,
+      dstAddr: '127.0.0.1',
+      dstPort: port,
+    };
 
-  server.on('connection', (connection) => {
-    console.log('new connection');
-  });
+    // create tunnel
+    console.log('Creating tunnel with options: ');
+    console.log(tunnelOptions);
+    console.log(serverOptions);
+    console.log(sshOptions);
+    console.log(forwardOptions);
+    const [server, conn] = await createTunnel(
+      tunnelOptions,
+      serverOptions,
+      sshOptions,
+      forwardOptions
+    );
 
-  // find TigerVNC vncviewer location on linux, mac and windows
-  let vncPath = '';
-  if (os.platform() === 'win32') {
-    vncPath = path.join('C:', 'Program Files', 'TigerVNC', 'vncviewer.exe');
-  } else if (os.platform() === 'darwin') {
-    vncPath = path.join('/', 'Applications', 'TigerVNC Viewer 1.13.1.app');
-  } else {
-    vncPath = path.join('/', 'usr', 'bin', 'vncviewer');
-  }
+    server.on('connection', (connection) => {
+      console.log('new connection');
+    });
 
-  // launch vncviewer with callback
-  const { exec } = require('child_process');
-  exec(
-    `${vncPath} localhost::${port}`,
-    (error: any, stdout: any, stderr: any) => {
-      if (error) {
-        console.log(`error: ${error.message}`);
-        return;
-      }
-      if (stderr) {
-        console.log(`stderr: ${stderr}`);
-      }
+    // find TigerVNC vncviewer location on linux, mac and windows
+    let vncPath = '';
+    if (os.platform() === 'win32') {
+      vncPath = path.join('C:', 'Program Files', 'TigerVNC', 'vncviewer.exe');
+    } else if (os.platform() === 'darwin') {
+      // hardcoded for development
+      vncPath = '/opt/homebrew/bin/vncviewer';
+    } else {
+      vncPath = path.join('/', 'usr', 'bin', 'vncviewer');
     }
-  );
+
+    // launch vncviewer with callback
+    const { exec } = require('child_process');
+    console.log('Launching VNC Viewer');
+    exec(
+      `${vncPath} localhost::${port}`,
+      (error: any, stdout: any, stderr: any) => {
+        if (error) {
+          console.log(`error: ${error.message}`);
+          return;
+        }
+        if (stderr) {
+          console.log(`stderr: ${stderr}`);
+        }
+      }
+    );
+  } catch (error) {
+    console.log('Error connecting to instance: ', error);
+    throw error;
+  }
 }
 
 async function loginWindowChange(
@@ -407,13 +423,11 @@ ipcMain.handle('oci-register-sso', async () => {
 ipcMain.handle(
   'create-system',
   async (event, { instanceConfigurationId, displayName }) => {
-    // generate keys
     try {
-      event.sender.send('create-system-update', {
-        success: 'true',
-        message: 'Hallo!!!',
-        error: '',
-      });
+      event.sender.send(
+        'create-system-update',
+        'Create System Request Recieved'
+      );
       // creating secret name
       const secretName =
         `${ociConnectUser.getProfileName()}-${displayName}`.replace(
@@ -421,17 +435,24 @@ ipcMain.handle(
           ''
         );
       // generating keys
+      event.sender.send('create-system-update', 'Generating Keys');
       const { publicKey, privateKey } = await GenerateKeys();
 
       console.log('Public Key: ', publicKey);
+      console.log('Private Key: ', privateKey);
 
       // convert public key to pem
       const pemKey = sshpk.parseKey(publicKey, 'pem');
       const sshRsa = pemKey.toString('ssh');
-
       console.log('SSH RSA: ', sshRsa);
 
+      // convert private key to ssh-rsa
+      const sshRsaPrivateKey = sshpk.parsePrivateKey(privateKey, 'pem');
+      const sshRsaPrivateKeyString = sshRsaPrivateKey.toString('ssh');
+      console.log('SSH RSA Private Key: ', sshRsaPrivateKeyString);
+
       // launch instance
+      event.sender.send('create-system-update', 'Launching your System!');
       const system = await ociConnectUser.launchInstanceFromConfig(
         instanceConfigurationId,
         displayName,
@@ -441,12 +462,6 @@ ipcMain.handle(
       // upload to OCI Vault
       const secret = await ociConnectUser.createSecret(privateKey, secretName);
 
-      event.sender.send('create-system', {
-        success: 'true',
-        system,
-        error: '',
-      });
-
       // Check if system is up by polling api every 5 seconds
       const interval = setInterval(async () => {
         const systemStatus = await ociConnectUser.instanceStatus(system.id);
@@ -454,11 +469,10 @@ ipcMain.handle(
         if (systemStatus === 'RUNNING') {
           clearInterval(interval);
           // inform renderer process that system is up
-          event.sender.send('create-system-update', {
-            success: 'true',
-            message: 'System is up, running setup',
-            error: '',
-          });
+          event.sender.send(
+            'create-system-update',
+            'System up, moving to your compartment'
+          );
           // system is up, now move to users compartment
           const workRequest = await ociConnectUser.moveInstance(
             system.id,
@@ -474,20 +488,35 @@ ipcMain.handle(
             if (moveStatus === 'SUCCEEDED') {
               clearInterval(moveInterval);
               // inform renderer process that system is up
-              event.sender.send('create-system-update', {
-                success: 'true',
-                message: 'System setup complete, connecting to system',
-                error: '',
-              });
+              event.sender.send(
+                'create-system-update',
+                'System moved, getting IP!'
+              );
               // get system IP
               const systemIP = await ociConnectUser.getInstanceIP(system.id);
+              event.sender.send(
+                'create-system-update',
+                'All done! Connecting to your System'
+              );
               // connect to system
-              launchVNCSoftware(systemIP, privateKey, system.shapeConfig);
-              return event.sender.send('create-system-update', {
-                success: 'true',
-                message: 'Connecting to system, please wait...',
-                error: '',
-              });
+              try {
+                await launchVNCSoftware(
+                  systemIP,
+                  privateKey,
+                  system.shapeConfig
+                );
+                return {
+                  success: 'true',
+                  message: 'Successfully Connected!',
+                  error: '',
+                };
+              } catch (error: any) {
+                return {
+                  success: 'false',
+                  message: '',
+                  error: error.message,
+                };
+              }
             }
           }, 5000);
         }
@@ -503,11 +532,11 @@ ipcMain.handle(
       if (error.statusCode === 409) {
         return {
           success: 'false',
-          system: null,
+          message: null,
           error: 'System Names must be unique! \n Please try again.',
         };
       }
-      return { success: 'false', system: null, error: error.message };
+      return { success: 'false', message: null, error: error.message };
     }
   }
 );
@@ -523,11 +552,7 @@ ipcMain.handle(
     );
     // Get systems Private Key to connect with
     try {
-      event.sender.send('start-system-update', {
-        success: 'true',
-        message: 'Hallo!!!',
-        error: '',
-      });
+      event.sender.send('start-system-update', 'Start System Request Recieved');
       const secretName =
         `${ociConnectUser.getProfileName()}-${displayName}`.replace(
           /[^\w-]/g,
@@ -536,12 +561,11 @@ ipcMain.handle(
       const privateKey = await ociConnectUser.getSecretContent(secretName);
 
       // start system
+      event.sender.send('start-system-update', 'Starting your System');
       const system = await ociConnectUser.startInstance(
         instanceConfigurationId
       );
       console.log('system starting: ', system);
-
-      event.sender.send('start-system', { success: 'true', system, error: '' });
 
       // Check if system is up by polling api every 5 seconds
       const interval = setInterval(async () => {
@@ -552,22 +576,30 @@ ipcMain.handle(
         if (systemStatus === 'RUNNING') {
           clearInterval(interval);
           // inform renderer process that system is up
-          event.sender.send('start-system', {
-            success: 'true',
-            system,
-            error: '',
-          });
+          event.sender.send(
+            'start-system-update',
+            'Your System is ready! Connecting'
+          );
+
           // get system IP
           const systemIP = await ociConnectUser.getInstanceIP(
             instanceConfigurationId
           );
           // connect to system
-          launchVNCSoftware(systemIP, privateKey);
-          return {
-            success: 'true',
-            message: 'Connecting to system',
-            error: '',
-          };
+          try {
+            await launchVNCSoftware(systemIP, privateKey);
+            return {
+              success: 'true',
+              message: 'Successfully Connected!',
+              error: '',
+            };
+          } catch (error) {
+            return {
+              success: 'false',
+              message: 'Error Connecting to System',
+              error: error.message,
+            };
+          }
         }
       }, 5000);
     } catch (error: any) {
@@ -575,21 +607,20 @@ ipcMain.handle(
         'Exception in start-system icpMain handler in main.ts file: ',
         error
       );
-      return { success: 'false', system: null, error };
+      return { success: 'false', system: null, error: error.message };
     }
   }
 );
 
 ipcMain.handle(
-  'reconnect-system ',
+  'reconnect-system',
   async (event, { instanceConfigurationId, displayName }) => {
     console.log('reconnect-system received');
     try {
-      event.sender.send('start-system-update', {
-        success: 'true',
-        message: 'Hallo!!!',
-        error: '',
-      });
+      event.sender.send(
+        'reconnect-system-update',
+        'Reconnect System Request Recieved'
+      );
       const secretName =
         `${ociConnectUser.getProfileName()}-${displayName}`.replace(
           /[^\w-]/g,
@@ -601,12 +632,27 @@ ipcMain.handle(
         instanceConfigurationId
       );
       // connect to system
-      launchVNCSoftware(systemIP, privateKey);
+      event.sender.send('reconnect-system-update', 'Connecting to you System');
+      try {
+        await launchVNCSoftware(systemIP, privateKey);
+        return {
+          success: 'true',
+          message: 'Successfully Connected!',
+          error: '',
+        };
+      } catch (error: any) {
+        return {
+          success: 'false',
+          message: '',
+          error: error.message,
+        };
+      }
     } catch (error: any) {
       console.log(
         'Exception in start-system icpMain handler in main.ts file: ',
         error
       );
+      return { success: 'false', message: null, error: error.message };
     }
   }
 );
@@ -651,50 +697,9 @@ ipcMain.handle('list-system-configs', async () => {
     return { success: 'false', error };
   }
 });
-/*
-// OCI Vault listeners
-// Create new SSH Key
-ipcMain.handle(
-  'vault-create-ssh-key',
-  async (event, { displayName, instanceConfigurationId }) => {
-    // generate keys
-    try {
-      const secretName =
-        `${ociConnectUser.getProfileName()}-${displayName}`.replace(
-          /[^\w-]/g,
-          ''
-        );
-      const { publicKey, privateKey } = await GenerateKeys();
-
-      // upload to OCI Vault
-      const secret = await ociConnectUser.createSecret(privateKey, secretName);
-
-      const system = await ociConnectUser.launchInstanceFromConfig(
-        instanceConfigurationId,
-        displayName,
-        publicKey
-      );
-
-      // return public key
-      return { success: 'true', system };
-    } catch (error: any) {
-      console.log(
-        'Exception in vault-create-ssh-key icpMain handler in main.ts file: ',
-        error
-      );
-      if (error.statusCode === 409) {
-        return {
-          success: 'false',
-          message: 'System Names must be unique! \n Please try again.',
-        };
-      }
-      return { success: 'false', error };
-    }
-  }
-);
-*/
 
 // Get SSH Key from OCI Vault
+/*
 ipcMain.handle('vault-export-ssh-key', async (event, keyId: string) => {
   const { publicKey, privateKey } = await GenerateKeys();
   console.log('vault-export-ssh-key received');
@@ -714,7 +719,9 @@ ipcMain.handle('vault-export-ssh-key', async (event, keyId: string) => {
     return { success: 'false', error };
   }
 });
+*/
 
+/*
 // List SSH Keys
 ipcMain.handle('vault-list-ssh-keys', async () => {
   console.log('vault-list-ssh-keys received');
@@ -730,7 +737,9 @@ ipcMain.handle('vault-list-ssh-keys', async () => {
     return { success: 'false', error };
   }
 });
+*/
 
+/*
 ipcMain.handle('vault-get-ssh-key', async (event, keyId: string) => {
   console.log('vault-get-ssh-key received');
   try {
@@ -745,6 +754,7 @@ ipcMain.handle('vault-get-ssh-key', async (event, keyId: string) => {
     return { success: 'false', error };
   }
 });
+*/
 
 ipcMain.handle('logout', async () => {
   console.log('logout received');

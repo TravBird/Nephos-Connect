@@ -248,7 +248,7 @@ a:hover {
 
 .Loader {
   border: 16px solid #8ed0e4;
-  border-top: 16px solid #064559; /* Blue */
+  border-top: 16px solid #4a7f8f; /* Blue */
   border-radius: 50%;
   width: 50px;
   height: 50px;
@@ -266,3 +266,17 @@ a:hover {
   100% { border-top: 16px solid #064559;}
 }
 
+.LoadingScreenContent{
+  /* align text centre */
+  text-align: center;
+}
+
+.CloseCreateSystemForm{
+  /* make button transparent */
+  background-color: transparent;
+  border: none;
+  outline: none;
+  margin: 0;
+  padding: 0;
+
+}

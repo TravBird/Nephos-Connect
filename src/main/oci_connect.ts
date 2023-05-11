@@ -21,7 +21,6 @@ LOG.logger = bunLog;
 const crypto = require('crypto');
 const sshpk = require('sshpk');
 
-
 const filePath = `${os.homedir()}/.oci/config`;
 const keyPath = `${os.homedir()}/.oci/keys/`;
 
@@ -461,15 +460,19 @@ export class OCIConnect {
     const instanceConfig: core.models.InstanceConfiguration =
       await this.getInstanceConfig(instanceConfigurationId);
 
-    const instanceDetails: core.models.ComputeInstanceDetails =
-      instanceConfig.instanceDetails as core.models.ComputeInstanceDetails;
+    console.log('Instance Config: ', instanceConfig);
+
+    const instanceDetails: core.models.ComputeInstanceDetails = {
+      instanceType: 'compute',
+      launchDetails: {
+        displayName,
+      },
+    };
 
     instanceDetails!.launchDetails!.displayName = displayName;
 
-    const b64PublicKey = Buffer.from(publicKey, 'utf8').toString('base64');
-
     instanceDetails!.launchDetails!.metadata = {
-      ssh_authorized_keys: `ssh-rsa ${b64PublicKey}`,
+      ssh_authorized_keys: `${publicKey}`,
     };
 
     const request: core.requests.LaunchInstanceConfigurationRequest = {
@@ -477,6 +480,8 @@ export class OCIConnect {
       instanceConfiguration: instanceDetails,
     };
     console.log('Request: ', request);
+    console.log('definedTags', instanceDetails!.launchDetails!.definedTags);
+    console.log('metadata', instanceDetails!.launchDetails!.metadata);
     const response: core.responses.LaunchInstanceConfigurationResponse =
       await this.clientManagement.launchInstanceConfiguration(request);
     return response.instance;
@@ -623,13 +628,13 @@ export async function GenerateKeys(): Promise<{
     crypto.generateKeyPair(
       'rsa',
       {
-        modulusLength: 4096,
+        modulusLength: 2048,
         publicKeyEncoding: {
           type: 'spki',
           format: 'pem',
         },
         privateKeyEncoding: {
-          type: 'pkcs8',
+          type: 'pkcs1',
           format: 'pem',
         },
       },

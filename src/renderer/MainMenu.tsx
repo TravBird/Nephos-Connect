@@ -4,7 +4,19 @@ import { MemoryRouter as Router, useNavigate } from 'react-router-dom';
 import { SetStateAction, useEffect, useState } from 'react';
 import './App.css';
 
-function OpenSystemCreateButton({ setOpenNewSystemSelection }) {
+function LoadingScreen({ loadingMessage }: any) {
+  return (
+    <div id="LoadingScreen">
+      <div className="LoadingScreenContent">
+        <h1>{loadingMessage}</h1>
+        <h2>Please wait</h2>
+        <div className="Loader" />
+      </div>
+    </div>
+  );
+}
+
+function OpenSystemCreateButton({ setOpenNewSystemSelection }: any) {
   return (
     <button
       type="button"
@@ -64,7 +76,7 @@ function ListNewSystem({
   );
 }
 
-async function getSystemConfigs(setError) {
+async function getSystemConfigs(setError: any) {
   const result = await window.electron.ipcRendererOCI.listSystemConfigurations(
     'list-system-configs'
   );
@@ -92,7 +104,7 @@ function NewSystemSelection({
       setConfigs(await getSystemConfigs(setError));
     }
     fetchData();
-  }, [openNewSystemSelection]);
+  }, [openNewSystemSelection, setError]);
   return (
     <div id="Create System Select">
       <ul>
@@ -112,44 +124,42 @@ function NewSystemSelection({
 async function createSystemRequest(
   instanceConfigurationId: string,
   displayName: string,
-  setError: any
+  setError: any,
+  setLoading: any
 ) {
   console.log('Creating system: ', instanceConfigurationId);
   console.log('Display name: ', displayName);
   // make request to create system
+  setLoading(`Creating System: ${displayName}`);
+  window.electron.ipcRendererOCI.listenUpdate(
+    'create-system-update',
+    (event, message) => {
+      console.log(message);
+      setLoading(message);
+    }
+  );
   const system = await window.electron.ipcRendererOCI.createSystem(
     'create-system',
     instanceConfigurationId,
     displayName
   );
+  console.log(system);
 
-  if (system.success !== 'true') {
-    setError(system.error.message);
-    return;
+  if (system.success === 'true') {
+    // system up, connecting
+    console.log(system.message);
+  } else {
+    console.log(system.error);
+    setLoading('');
+    setError(system.error);
   }
-
-  // listen for updates
-  window.electron.ipcRendererOCI.listenUpdate(
-    'create-system-update',
-    (event, message) => {
-      console.log('Hello! :D');
-      console.log(message);
-      if (message.status === 'success') {
-        // setLoading(message.message);
-        console.log(message.message);
-      }
-      if (message.status === 'error') {
-        // setLoading(message.message);
-        setError(message.error);
-      }
-    }
-  );
 }
 
 function CreateSystemButton({
   selectedNewSystem,
   systemDisplayName,
   setError,
+  setLoading,
 }: any) {
   console.log(systemDisplayName);
   let name = '';
@@ -162,9 +172,8 @@ function CreateSystemButton({
   return (
     <button
       type="button"
-      onClick={() => createSystemRequest(id, name, setError)}
+      onClick={() => createSystemRequest(id, name, setError, setLoading)}
       // id={selected}
-      // disabled={awaiting}
     >
       Create Selected new System? : {name}
     </button>
@@ -176,18 +185,22 @@ function CreateSystemForm({
   setSelectedNewSystem,
   setError,
   setOpenNewSystemSelection,
+  setLoading,
 }: any) {
+  const [displayName, setDisplayName] = useState('');
   return (
     <div id="CreateSystemForm">
       <div className="CreateSystemFormContent">
-        <span
+        <button
+          type="button"
+          aria-label='Close "Create System" form'
           className="CloseCreateSystemForm"
           onClick={() => {
             setOpenNewSystemSelection(false);
           }}
         >
           &times;
-        </span>
+        </button>
         <h2>Create a new System</h2>
         <NewSystemSelection
           selectedNewSystem={selectedNewSystem}
@@ -205,14 +218,15 @@ function CreateSystemForm({
               id="displayName"
               name="displayName"
               placeholder={selectedNewSystem.displayName}
+              onChange={(e) => {
+                setDisplayName(e.target.value);
+              }}
             />
             <CreateSystemButton
               selectedNewSystem={selectedNewSystem}
-              systemDisplayName={
-                (document.getElementById('displayName') as HTMLInputElement)
-                  .value
-              }
+              systemDisplayName={displayName}
               setError={setError}
+              setLoading={setLoading}
             />
           </>
         ) : null}
@@ -221,7 +235,7 @@ function CreateSystemForm({
   );
 }
 
-async function getUserSystems(setError) {
+async function getUserSystems(setError: any) {
   const result = await window.electron.ipcRendererOCI.listUserSystems(
     'list-user-systems'
   );
@@ -238,7 +252,6 @@ async function getUserSystems(setError) {
 function ListSystem({ system, selected, setSelected }: any) {
   const [open, setOpen] = useState(false);
   const { id, displayName, lifecycleState } = system;
-  console.log(selected);
   return (
     <li className="ConfigInfo" key={id}>
       <div className="InitialInfo">
@@ -281,7 +294,7 @@ function SysSelection({ systems, selected, setSelected }: any) {
     <div id="User System Selection">
       <h1>Select your System below</h1>
       <ul>
-        {systems.map((system) => (
+        {systems.map((system: any) => (
           <ListSystem
             system={system}
             selected={selected}
@@ -294,74 +307,70 @@ function SysSelection({ systems, selected, setSelected }: any) {
 }
 
 async function startSystemRequest(
-  instanceConfigurationId,
-  displayName,
-  setError,
-  setAwaiting
+  instanceConfigurationId: string,
+  displayName: string,
+  setError: any,
+  setLoading: any
 ) {
   console.log('start system request: ', instanceConfigurationId, displayName);
-  // setAwaiting(true);
+  setLoading(`Starting System: ${displayName}`);
+  // listen for updates
+  window.electron.ipcRendererOCI.listenUpdate(
+    'start-system-update',
+    (event, message: String) => {
+      console.log(message);
+      setLoading(message);
+    }
+  );
   const system = await window.electron.ipcRendererOCI.startSystem(
     'start-system',
     instanceConfigurationId,
     displayName
   );
-  console.log(system);
-  // listen for updates
-  window.electron.ipcRendererOCI.listenUpdate(
-    'start-system-update',
-    (event, message) => {
-      console.log('Hello! :D');
-      console.log(message);
-      if (message.status === 'success') {
-        // setLoading(message.message);
-        console.log(message.message);
-      }
-      if (message.status === 'error') {
-        // setLoading(message.message);
-        setError(message.error);
-      }
-    }
-  );
+  if (system.success === 'success') {
+    // system up, connecting
+    console.log(system.message);
+  } else {
+    console.log(system.error);
+    setLoading('');
+    setError(system.error);
+  }
 }
 
 async function reconnectSystemRequest(
-  instanceConfigurationId,
-  displayName,
-  setError,
-  setAwaiting
+  instanceConfigurationId: string,
+  displayName: string,
+  setError: any,
+  setLoading: any
 ) {
-  console.log(
-    'reconnect system request: ',
-    instanceConfigurationId,
-    displayName
+  console.log('Reconnecting system: ', displayName);
+  setLoading(`Reconnecting to System: ${displayName}`);
+
+  // listen for updates
+  window.electron.ipcRendererOCI.listenUpdate(
+    'reconnect-system-update',
+    (event, message: String) => {
+      console.log(message);
+      setLoading(message);
+    }
   );
-  // setAwaiting(true);
+
   const system = await window.electron.ipcRendererOCI.reconnectSystem(
     'reconnect-system',
     instanceConfigurationId,
     displayName
   );
-  console.log(system);
-  // listen for updates
-  window.electron.ipcRendererOCI.listenUpdate(
-    'reconnect-system-update',
-    (event, message) => {
-      console.log('Hello! :D');
-      console.log(message);
-      if (message.status === 'success') {
-        // setLoading(message.message);
-        console.log(message.message);
-      }
-      if (message.status === 'error') {
-        // setLoading(message.message);
-        setError(message.error);
-      }
-    }
-  );
+  if (system.success === 'success') {
+    // system up, connecting
+    console.log(system.message);
+  } else {
+    console.log(system.error);
+    setLoading('');
+    setError(system.error);
+  }
 }
 
-function StartSystemButton({ selected, awaiting, setAwaiting, setError }: any) {
+function StartSystemButton({ selected, setError, setLoading }: any) {
   console.log(selected.id);
   return (
     <button
@@ -371,37 +380,30 @@ function StartSystemButton({ selected, awaiting, setAwaiting, setError }: any) {
           selected.id,
           selected.displayName,
           setError,
-          setAwaiting
+          setLoading
         )
       }
       id={selected.id}
-      disabled={awaiting}
     >
       Start {selected.displayName}?
     </button>
   );
 }
 
-function ReconnectSystemButton({
-  selected,
-  awaiting,
-  setAwaiting,
-  setError,
-}: any) {
+function ReconnectSystemButton({ selected, setLoading, setError }: any) {
   console.log(selected.id);
   return (
     <button
       type="button"
       onClick={() =>
-        startSystemRequest(
+        reconnectSystemRequest(
           selected.id,
           selected.displayName,
           setError,
-          setAwaiting
+          setLoading
         )
       }
       id={selected.id}
-      disabled={awaiting}
     >
       Reconnect to {selected.displayName}?
     </button>
@@ -437,7 +439,7 @@ function LogoutButton(setError: SetStateAction<any>) {
   );
 }
 
-export default function MainMenu({ ErrorPopup, error, setError }) {
+export default function MainMenu({ ErrorPopup, error, setError }: any) {
   const [systems, setSystems] = useState([{}]);
   const [selected, setSelected] = useState({
     id: '',
@@ -448,8 +450,8 @@ export default function MainMenu({ ErrorPopup, error, setError }) {
     id: '',
     displayName: '',
   });
-  const [awaiting, setAwaiting] = useState(false);
   const [openNewSystemSelection, setOpenNewSystemSelection] = useState(false);
+  const [loading, setLoading] = useState('');
 
   useEffect(() => {
     async function fetchData() {
@@ -458,48 +460,54 @@ export default function MainMenu({ ErrorPopup, error, setError }) {
       setSystems(response);
     }
     fetchData();
-  }, []);
+  }, [setError]);
 
   if (systems.length > 0) {
     return (
       <div>
-        {error !== '' ? (
-          <ErrorPopup message={error} setError={setError} />
-        ) : null}
-        <SysSelection
-          systems={systems}
-          selected={selected}
-          setSelected={setSelected}
-          setError={setError}
-        />
-        {selected.id !== '' && selected.lifecycleState === 'RUNNING' ? (
-          <ReconnectSystemButton
-            selected={selected}
-            awaiting={awaiting}
-            setAwaiting={setAwaiting}
-            setError={setError}
-          />
-        ) : null}
-        {selected.id !== '' && selected.lifecycleState !== 'RUNNING' ? (
-          <StartSystemButton
-            selected={selected}
-            awaiting={awaiting}
-            setAwaiting={setAwaiting}
-            setError={setError}
-          />
-        ) : null}
-        <OpenSystemCreateButton
-          setOpenNewSystemSelection={setOpenNewSystemSelection}
-        />
-        {openNewSystemSelection ? (
-          <CreateSystemForm
-            selectedNewSystem={selectedNewSystem}
-            setSelectedNewSystem={setSelectedNewSystem}
-            setError={setError}
-            setOpenNewSystemSelection={setOpenNewSystemSelection}
-          />
-        ) : null}
-        <LogoutButton setError={setError} />
+        {loading !== '' ? (
+          <LoadingScreen loadingMessage={loading} />
+        ) : (
+          <div>
+            {error !== '' ? (
+              <ErrorPopup message={error} setError={setError} />
+            ) : null}
+            <SysSelection
+              systems={systems}
+              selected={selected}
+              setSelected={setSelected}
+              setError={setError}
+              setLoading={setLoading}
+            />
+            {selected.id !== '' && selected.lifecycleState === 'RUNNING' ? (
+              <ReconnectSystemButton
+                selected={selected}
+                setError={setError}
+                setLoading={setLoading}
+              />
+            ) : null}
+            {selected.id !== '' && selected.lifecycleState !== 'RUNNING' ? (
+              <StartSystemButton
+                selected={selected}
+                setError={setError}
+                setLoading={setLoading}
+              />
+            ) : null}
+            <OpenSystemCreateButton
+              setOpenNewSystemSelection={setOpenNewSystemSelection}
+            />
+            {openNewSystemSelection ? (
+              <CreateSystemForm
+                selectedNewSystem={selectedNewSystem}
+                setSelectedNewSystem={setSelectedNewSystem}
+                setError={setError}
+                setOpenNewSystemSelection={setOpenNewSystemSelection}
+                setLoading={setLoading}
+              />
+            ) : null}
+            <LogoutButton setError={setError} />
+          </div>
+        )}
       </div>
     );
   }
@@ -513,6 +521,7 @@ export default function MainMenu({ ErrorPopup, error, setError }) {
           setSelectedNewSystem={setSelectedNewSystem}
           setError={setError}
           setOpenNewSystemSelection={setOpenNewSystemSelection}
+          setLoading={setLoading}
         />
       ) : null}
       <OpenSystemCreateButton
