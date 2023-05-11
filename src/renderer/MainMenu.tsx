@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable react/prop-types */
 /* eslint-disable react/jsx-filename-extension */
 import { MemoryRouter as Router, useNavigate } from 'react-router-dom';
@@ -261,7 +262,12 @@ function ListSystem({ system, selected, setSelected }: any) {
             checked={selected.displayName === displayName}
             onChange={() => setSelected({ id, displayName, lifecycleState })}
           />
-          {displayName}: {lifecycleState}
+          {displayName}: {lifecycleState}{' '}
+          {lifecycleState === 'RUNNING'
+            ? '🟢'
+            : lifecycleState === 'STOPPED'
+            ? '🟡'
+            : '🔴'}
         </span>
         <span>
           <button
@@ -370,6 +376,27 @@ async function reconnectSystemRequest(
   }
 }
 
+async function deleteSystemRequest(
+  instanceId: string,
+  displayName: string,
+  setError: any
+) {
+  console.log('Deleting system: ', instanceId);
+
+  const system = await window.electron.ipcRendererOCI.terminateSystem(
+    'terminate-system',
+    displayName,
+    instanceId
+  );
+  if (system.success === 'success') {
+    // system up, connecting
+    console.log(system.message);
+  } else {
+    console.log(system.error);
+    setError(system.error);
+  }
+}
+
 function StartSystemButton({ selected, setError, setLoading }: any) {
   console.log(selected.id);
   return (
@@ -435,6 +462,22 @@ function LogoutButton(setError: SetStateAction<any>) {
       }}
     >
       Logout
+    </button>
+  );
+}
+
+function DeleteSystemButton({ selected, setError }: any) {
+  console.log(selected.id);
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        deleteSystemRequest(selected.id, selected.displayName, setError)
+      }
+      id={selected.id}
+      className="DeleteButton"
+    >
+      Delete {selected.displayName}?
     </button>
   );
 }
@@ -506,6 +549,9 @@ export default function MainMenu({ ErrorPopup, error, setError }: any) {
               />
             ) : null}
             <LogoutButton setError={setError} />
+            {selected.id !== '' ? (
+              <DeleteSystemButton selected={selected} setError={setError} />
+            ) : null}
           </div>
         )}
       </div>

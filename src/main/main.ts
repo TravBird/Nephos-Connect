@@ -106,18 +106,22 @@ async function launchVNCSoftware(ipAddress: string, sshKey: string) {
     }
 
     // launch vncviewer with callback
-    const { exec } = require('child_process');
+    const { execSync } = require('child_process');
     console.log('Launching VNC Viewer');
-    exec(
-      `${vncPath} localhost::${port}`,
+    execSync(
+      `${vncPath} -Maximize -geometry=1920x1080 -RemoteResize -CompressLevel=9 -QualityLevel=9 -AutoSelect=1 localhost::${port}`,
       (error: any, stdout: any, stderr: any) => {
         if (error) {
           console.log(`error: ${error.message}`);
+          // close ssh tunnel
           return;
         }
         if (stderr) {
           console.log(`stderr: ${stderr}`);
+          // close ssh tunnel
+          server.close();
         }
+        console.log(`stdout: ${stdout}`);
       }
     );
   } catch (error) {
@@ -500,11 +504,9 @@ ipcMain.handle(
               );
               // connect to system
               try {
-                await launchVNCSoftware(
-                  systemIP,
-                  privateKey,
-                  system.shapeConfig
-                );
+                await launchVNCSoftware(systemIP, privateKey);
+                console.log('VNC Closed, stopping system');
+                await ociConnectUser.stopInstance(system.id);
                 return {
                   success: 'true',
                   message: 'Successfully Connected!',
@@ -588,6 +590,8 @@ ipcMain.handle(
           // connect to system
           try {
             await launchVNCSoftware(systemIP, privateKey);
+            console.log('VNC Closed, stopping system');
+            await ociConnectUser.stopInstance(system.id);
             return {
               success: 'true',
               message: 'Successfully Connected!',
@@ -632,9 +636,11 @@ ipcMain.handle(
         instanceConfigurationId
       );
       // connect to system
-      event.sender.send('reconnect-system-update', 'Connecting to you System');
+      event.sender.send('reconnect-system-update', 'Connecting to your System');
       try {
         await launchVNCSoftware(systemIP, privateKey);
+        console.log('VNC Closed, stopping system');
+        await ociConnectUser.stopInstance(instanceConfigurationId.id);
         return {
           success: 'true',
           message: 'Successfully Connected!',
@@ -662,10 +668,34 @@ ipcMain.handle('stop-system', async (event, arg) => {
   return ociConnectUser.stopInstance(arg);
 });
 // Terminate System
-ipcMain.handle('terminate-system', async (event, arg) => {
-  console.log('termiante-system received');
-  return ociConnectUser.terminateInstance(arg);
-});
+ipcMain.handle(
+  'terminate-system',
+  async (event, { displayName, instanceId }) => {
+    console.log('termiante-system received');
+    try {
+      // terminate system
+      console.log('Terminating instance');
+      const result = await ociConnectUser.terminateInstance(instanceId);
+      if (result) {
+        // delete secret
+        const secretName =
+          `${ociConnectUser.getProfileName()}-${displayName}`.replace(
+            /[^\w-]/g,
+            ''
+          );
+        console.log('Deleting Secret');
+        await ociConnectUser.deleteSecret(secretName);
+        return { success: 'true', message: 'System Terminated', error: '' };
+      }
+    } catch (error: any) {
+      console.log(
+        'Exception in terminate-system icpMain handler in main.ts file: ',
+        error
+      );
+      return { success: 'false', message: null, error: error.message };
+    }
+  }
+);
 
 ipcMain.handle('list-user-systems', async () => {
   console.log('list-user-systems received');

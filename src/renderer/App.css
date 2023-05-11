@@ -280,3 +280,10 @@ a:hover {
   padding: 0;
 
 }
+
+.DeleteButton{
+  /* position in bottom left corner */
+  color: red;
+  position: absolute;
+
+}

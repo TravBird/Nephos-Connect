@@ -368,6 +368,41 @@ export class OCIConnect {
     return secretContent;
   }
 
+  async deleteSecret(secretName: string): Promise<void> {
+    /**
+     * Deletes the secret from the vault with the given secret name.
+     * @param secretName: The secret name of the secret object that will be deleted.
+     * */
+
+    const secretId = await this.getSecretId(secretName);
+    const details: vault.models.ScheduleSecretDeletionDetails = {
+      // set time of deletion to 1 day from now
+      timeOfDeletion: new Date(Date.now() + 25 * 60 * 60 * 1000),
+    };
+    const request: vault.requests.ScheduleSecretDeletionRequest = {
+      secretId,
+      scheduleSecretDeletionDetails: details,
+    };
+    await this.vaultsClient.scheduleSecretDeletion(request);
+  }
+
+  async getSecretId(secretName: string): Promise<string> {
+    /**
+     * Gets the secret id from the vault with the given secret name.
+     * @param secretName: The secret name of the secret object that will be retrieved.
+     * @returns secret id that was retrieved.
+     * */
+
+    const request: secrets.requests.GetSecretBundleByNameRequest = {
+      secretName,
+      vaultId: this.vaultCompartment,
+    };
+    const response: secrets.responses.GetSecretBundleByNameResponse =
+      await this.secretClient.getSecretBundleByName(request);
+
+    return response.secretBundle.secretId;
+  }
+
   async listSSHKeys(): Promise<keyManagement.models.KeySummary[]> {
     const request: keyManagement.requests.ListKeysRequest = {
       compartmentId:

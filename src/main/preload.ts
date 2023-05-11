@@ -60,8 +60,15 @@ const electronHandler = {
       const result = await ipcRenderer.invoke(channel);
       return result;
     },
-    async terminateSystem(channel: 'terminate-system', request: any) {
-      const result = await ipcRenderer.invoke(channel, request);
+    async terminateSystem(
+      channel: 'terminate-system',
+      displayName: String,
+      instanceId: String
+    ) {
+      const result = await ipcRenderer.invoke(channel, {
+        displayName,
+        instanceId,
+      });
       return result;
     },
     async listSystemConfigurations(channel: 'list-system-configs') {
