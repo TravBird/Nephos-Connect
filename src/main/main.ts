@@ -590,15 +590,23 @@ ipcMain.handle(
               );
               // get system IP
               const systemIP = await ociConnectUser.getInstanceIP(system.id);
+
               event.sender.send(
                 'create-system-update',
-                'All done! Connecting to your System'
+                'Your System is almost ready, just a little longer!'
               );
               // connect to system
               if (operatingSystem === 'Linux') {
                 try {
-                  // wait for 5 seconds before connecting for SSH to be up
+                  // wait for 50 seconds before connecting for SSH to be up
+                  console.log(
+                    'Waiting for 50 seconds before connecting to system'
+                  );
                   setTimeout(async () => {
+                    event.sender.send(
+                      'create-system-update',
+                      'All done! Connecting to your System'
+                    );
                     const closed = await connectVNC(systemIP, privateKey);
                     if (closed === false) {
                       console.log('VNC Closed, stopping system');
@@ -609,7 +617,7 @@ ipcMain.handle(
                       message: 'Successfully closed connection',
                       error: '',
                     };
-                  }, 5000);
+                  }, 50000);
                 } catch (error: any) {
                   console.log('Exception in connectVNC: ', error);
                   event.sender.send(
@@ -718,8 +726,8 @@ ipcMain.handle(
           // connect to system
           if (operatingSystem === 'Linux') {
             try {
-              // wait for 30 seconds before connecting for SSH to be up
-              console.log('Waiting for 30 seconds before connecting');
+              // wait for 50 seconds before connecting for SSH to be up
+              console.log('Waiting for 50 seconds before connecting');
               setTimeout(async () => {
                 event.sender.send(
                   'start-system-update',
@@ -765,7 +773,7 @@ ipcMain.handle(
             } catch (error: any) {
               console.log('Exception in connectRDP: ', error);
               event.sender.send(
-                'create-system-update',
+                'start-system-update',
                 'Exception Occured while connecting to your System, please try again later'
               );
               return {
@@ -824,7 +832,7 @@ ipcMain.handle(
         } catch (error: any) {
           console.log('Exception in connectVNC: ', error);
           event.sender.send(
-            'create-system-update',
+            'reconnect-system-update',
             'Exception Occured while connecting to your System, please try again later'
           );
           return {
@@ -852,7 +860,7 @@ ipcMain.handle(
         } catch (error: any) {
           console.log('Exception in connectRDP: ', error);
           event.sender.send(
-            'create-system-update',
+            'reconnect-system-update',
             'Exception Occured while connecting to your System, please try again later'
           );
           return {
