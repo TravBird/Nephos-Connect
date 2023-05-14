@@ -122,17 +122,16 @@ async function connectVNC(ipAddress: string, sshKey: string) {
   console.log('Launching VNC Viewer');
   try {
     const vncViewer = await execFile(vncPath, [
-      // '-Maximize',
-      // `-geometry=${width}x${height}`,
-      // '-RemoteResize',
-      // '-CompressLevel=2',
-      // '-QualityLevel=5',
-      // '-AutoSelect=1',
-      // '-FullScreenMode=All',
-      // '-FullScreen=0',
-      // '-FullscreenSystemKeys=1',
-      // `-DesktopSize=${width}x${height}`,
-      // '-MenuKey',
+      '-Maximize',
+      `-geometry=${width}x${height}`,
+      '-RemoteResize',
+      '-CompressLevel=2',
+      '-QualityLevel=5',
+      '-AutoSelect=1',
+      '-FullScreenMode=All',
+      '-FullScreen=0',
+      '-FullscreenSystemKeys=1',
+      `-DesktopSize=${width}x${height}`,
       `localhost::${port}`,
     ]);
     vncViewer.stdout.on('data', (data) => {

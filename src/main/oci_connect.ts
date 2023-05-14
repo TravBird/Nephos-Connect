@@ -13,11 +13,6 @@ import * as fs from 'fs';
 import os from 'os';
 import { createPublicKey } from 'crypto';
 
-const bunyan = require('bunyan');
-
-const bunLog = bunyan.createLogger({ name: 'OCIConnect', level: 'debug' });
-LOG.logger = bunLog;
-
 const crypto = require('crypto');
 const sshpk = require('sshpk');
 
