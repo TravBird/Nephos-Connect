@@ -33,22 +33,26 @@ const electronHandler = {
     async startSystem(
       channel: 'start-system',
       instanceConfigurationId: string,
-      displayName: string
+      displayName: string,
+      operatingSystem: string
     ) {
       const result = await ipcRenderer.invoke(channel, {
         instanceConfigurationId,
         displayName,
+        operatingSystem,
       });
       return result;
     },
     async reconnectSystem(
       channel: 'reconnect-system',
       instanceConfigurationId: string,
-      displayName: string
+      displayName: string,
+      operatingSystem: string
     ) {
       const result = await ipcRenderer.invoke(channel, {
         instanceConfigurationId,
         displayName,
+        operatingSystem,
       });
       return result;
     },
@@ -78,11 +82,13 @@ const electronHandler = {
     async createSystem(
       channel: 'create-system',
       instanceConfigurationId: string,
-      displayName: string
+      displayName: string,
+      operatingSystem: string
     ) {
       const result = await ipcRenderer.invoke(channel, {
         instanceConfigurationId,
         displayName,
+        operatingSystem,
       });
       return result;
     },

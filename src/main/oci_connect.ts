@@ -289,6 +289,30 @@ export class OCIConnect {
     return publicIp;
   }
 
+  async getInitialWindowsCredentials(
+    instanceId: string
+  ): Promise<[username: string, password: string]> {
+    /**
+     * Returns the initial password for a Windows instance
+     * @param instanceId
+     * @returns string
+     * @example
+     * const initialPassword = await getInitialWindowsPassword(instanceId);
+     *
+     * */
+    const request: core.requests.GetWindowsInstanceInitialCredentialsRequest = {
+      instanceId,
+    };
+
+    const response: core.responses.GetWindowsInstanceInitialCredentialsResponse =
+      await this.computeClient.getWindowsInstanceInitialCredentials(request);
+
+    return [
+      response.instanceCredentials.username,
+      response.instanceCredentials.password,
+    ];
+  }
+
   // Teriminate instance
   async terminateInstance(
     instanceId: string
@@ -663,13 +687,13 @@ export async function GenerateKeys(): Promise<{
     crypto.generateKeyPair(
       'rsa',
       {
-        modulusLength: 2048,
+        modulusLength: 4096,
         publicKeyEncoding: {
           type: 'spki',
           format: 'pem',
         },
         privateKeyEncoding: {
-          type: 'pkcs1',
+          type: 'pkcs8',
           format: 'pem',
         },
       },

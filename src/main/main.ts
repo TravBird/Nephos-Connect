@@ -1,12 +1,20 @@
 /* eslint-disable import/extensions */
 /* eslint global-require: off, no-console: off, promise/always-return: off */
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain, BrowserView } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  shell,
+  ipcMain,
+  BrowserView,
+  screen,
+} from 'electron';
 import jwtDecode from 'jwt-decode';
 import os from 'os';
 import fs from 'fs';
 import { createTunnel } from 'tunnel-ssh';
 import { stringify } from 'querystring';
+import { Server } from 'http';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import IDCSAuth from './idcs_auth';
@@ -43,91 +51,177 @@ ipcMain.handle('shutdown', () => {
   shutdown.shutdown();
 });
 
-async function launchVNCSoftware(ipAddress: string, sshKey: string) {
+async function connectVNC(ipAddress: string, sshKey: string) {
   // Testing function to launch VNC software
-  try {
-    console.log(sshKey);
-    const pemKey = sshpk.parsePrivateKey(sshKey, 'auto');
-    const sshRsa = pemKey.toString('pkcs1');
-    console.log(sshRsa);
+  const pemKey2 = forge.pki.privateKeyFromPem(sshKey);
+  const sshKey2 = forge.ssh.privateKeyToOpenSSH(pemKey2);
 
-    const pemKey2 = forge.pki.privateKeyFromPem(sshKey);
-    const sshKey2 = forge.ssh.privateKeyToOpenSSH(pemKey2);
-    console.log(sshKey2);
+  // set up ssh tunnel
+  const port = 5901;
 
-    // set up ssh tunnel
-    const port = 5901;
+  const tunnelOptions = {
+    autoClose: true,
+  };
+  const serverOptions = {
+    port,
+  };
+  const sshOptions = {
+    host: ipAddress,
+    username: 'ubuntu',
+    port: 22,
+    privateKey: sshKey2,
+  };
+  const forwardOptions = {
+    srcAddr: '0.0.0.0',
+    srcPort: port,
+    dstAddr: '127.0.0.1',
+    dstPort: port,
+  };
 
-    const tunnelOptions = {
-      autoClose: false,
-    };
-    const serverOptions = {
-      port,
-    };
-    const sshOptions = {
-      host: ipAddress,
-      username: 'ubuntu',
-      port: 22,
-      privateKey: sshKey2,
-    };
-    const forwardOptions = {
-      srcAddr: '0.0.0.0',
-      srcPort: port,
-      dstAddr: '127.0.0.1',
-      dstPort: port,
-    };
+  console.log('Creating SSH tunnel with following options: ');
+  console.log(tunnelOptions);
+  console.log(serverOptions);
+  console.log(sshOptions);
+  console.log(forwardOptions);
+  console.log(ipAddress);
+  console.log(sshKey2);
 
-    // create tunnel
-    console.log('Creating tunnel with options: ');
-    console.log(tunnelOptions);
-    console.log(serverOptions);
-    console.log(sshOptions);
-    console.log(forwardOptions);
-    const [server, conn] = await createTunnel(
-      tunnelOptions,
-      serverOptions,
-      sshOptions,
-      forwardOptions
-    );
+  const [server, conn] = [null, null];
+
+  await createTunnel(
+    tunnelOptions,
+    serverOptions,
+    sshOptions,
+    forwardOptions
+  ).then(([server, conn], error) => {
+    server.on('error', (e) => {
+      console.log(e);
+    });
+
+    conn.on('error', (e) => {
+      console.log(e);
+    });
+
+    conn.on('close', () => {
+      console.log('Connection closed');
+    });
 
     server.on('connection', (connection) => {
       console.log('new connection');
     });
+  });
 
-    // find TigerVNC vncviewer location on linux, mac and windows
-    let vncPath = '';
-    if (os.platform() === 'win32') {
-      vncPath = path.join('C:', 'Program Files', 'TigerVNC', 'vncviewer.exe');
-    } else if (os.platform() === 'darwin') {
-      // hardcoded for development
-      vncPath = '/opt/homebrew/bin/vncviewer';
-    } else {
-      vncPath = path.join('/', 'usr', 'bin', 'vncviewer');
-    }
+  // hardcoded for development
+  const vncPath = '/opt/homebrew/bin/vncviewer';
 
-    // launch vncviewer with callback
-    const { execSync } = require('child_process');
-    console.log('Launching VNC Viewer');
-    execSync(
-      `${vncPath} -Maximize -geometry=1920x1080 -RemoteResize -CompressLevel=9 -QualityLevel=9 -AutoSelect=1 localhost::${port}`,
-      (error: any, stdout: any, stderr: any) => {
-        if (error) {
-          console.log(`error: ${error.message}`);
-          // close ssh tunnel
-          return;
-        }
-        if (stderr) {
-          console.log(`stderr: ${stderr}`);
-          // close ssh tunnel
-          server.close();
-        }
-        console.log(`stdout: ${stdout}`);
-      }
-    );
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+  console.log(`width: ${width}, height: ${height}`);
+  // launch vncviewer with spawn
+  const { execFile } = require('child_process');
+  console.log('Launching VNC Viewer');
+  try {
+    const vncViewer = await execFile(vncPath, [
+      // '-Maximize',
+      // `-geometry=${width}x${height}`,
+      // '-RemoteResize',
+      // '-CompressLevel=2',
+      // '-QualityLevel=5',
+      // '-AutoSelect=1',
+      // '-FullScreenMode=All',
+      // '-FullScreen=0',
+      // '-FullscreenSystemKeys=1',
+      // `-DesktopSize=${width}x${height}`,
+      // '-MenuKey',
+      `localhost::${port}`,
+    ]);
+    vncViewer.stdout.on('data', (data) => {
+      console.log(`stdout: ${data}`);
+    });
+    vncViewer.stderr.on('data', (data) => {
+      console.error(`stderr: ${data}`);
+    });
+    vncViewer.on('close', (code, signal) => {
+      console.error(
+        `VNC process exited with code ${code} and signal ${signal}`
+      );
+      // close ssh tunnel
+      console.log('Closing SSH Tunnel');
+      return false;
+    });
+    vncViewer.on('error', (err) => {
+      console.error(`Failed to start VNC Viewer process: ${err}`);
+      // close ssh tunnel
+      console.log('Closing SSH Tunnel');
+      return false;
+    });
+    vncViewer.on('exit', (code, signal) => {
+      console.log(
+        `VNC Viewer process exited with code ${code} and signal ${signal}`
+      );
+      // close ssh tunnel
+      console.log('Closing SSH Tunnel');
+      return false;
+    });
   } catch (error) {
-    console.log('Error connecting to instance: ', error);
-    throw error;
+    console.log('VNC viewer closed unexpectedly', error);
+    // close ssh tunnel
+    console.log('Closing SSH Tunnel');
+    return false;
   }
+  return true;
+}
+
+async function connectRDP(
+  ipAddress: string,
+  username: string,
+  password: string
+) {
+  const rdpPath = '/opt/homebrew/bin/xfreerdp';
+  const { execFile } = require('child_process');
+  console.log('Launching RDP Viewer');
+  try {
+    const rdpViewer = await execFile(rdpPath, [
+      `/u:${username}`,
+      `/p:${password}`,
+      `/v:${ipAddress}`,
+      '/sound:sys:alsa',
+      '/microphone:sys:alsa',
+      // '/usb:id,dev:1a86:7523',
+    ]);
+    rdpViewer.stdout.on('data', (data) => {
+      console.log(`stdout: ${data}`);
+    });
+    rdpViewer.stderr.on('data', (data) => {
+      console.error(`stderr: ${data}`);
+    });
+    rdpViewer.on('close', (code, signal) => {
+      console.error(
+        `RDP process exited with code ${code} and signal ${signal}`
+      );
+      // close ssh tunnel
+      console.log('Closing SSH Tunnel');
+      return false;
+    });
+    rdpViewer.on('error', (err) => {
+      console.error(`Failed to start RDP process: ${err}`);
+      // close ssh tunnel
+      console.log('Closing SSH Tunnel');
+      return false;
+    });
+    rdpViewer.on('exit', (code, signal) => {
+      console.log(`RDP process exited with code ${code} and signal ${signal}`);
+      // close ssh tunnel
+      console.log('Closing SSH Tunnel');
+      return false;
+    });
+  } catch (error) {
+    console.log('RDP viewer closed unexpectedly', error);
+    // close ssh tunnel
+    console.log('Closing SSH Tunnel');
+    return false;
+  }
+  return true;
 }
 
 async function loginWindowChange(
@@ -426,7 +520,7 @@ ipcMain.handle('oci-register-sso', async () => {
 // Create new system
 ipcMain.handle(
   'create-system',
-  async (event, { instanceConfigurationId, displayName }) => {
+  async (event, { instanceConfigurationId, displayName, operatingSystem }) => {
     try {
       event.sender.send(
         'create-system-update',
@@ -441,9 +535,6 @@ ipcMain.handle(
       // generating keys
       event.sender.send('create-system-update', 'Generating Keys');
       const { publicKey, privateKey } = await GenerateKeys();
-
-      console.log('Public Key: ', publicKey);
-      console.log('Private Key: ', privateKey);
 
       // convert public key to pem
       const pemKey = sshpk.parseKey(publicKey, 'pem');
@@ -467,6 +558,7 @@ ipcMain.handle(
       const secret = await ociConnectUser.createSecret(privateKey, secretName);
 
       // Check if system is up by polling api every 5 seconds
+      event.sender.send('create-system-update', 'Waiting for System to start');
       const interval = setInterval(async () => {
         const systemStatus = await ociConnectUser.instanceStatus(system.id);
         console.log('System Status: ', systemStatus);
@@ -503,42 +595,78 @@ ipcMain.handle(
                 'All done! Connecting to your System'
               );
               // connect to system
-              try {
-                await launchVNCSoftware(systemIP, privateKey);
-                console.log('VNC Closed, stopping system');
-                await ociConnectUser.stopInstance(system.id);
-                return {
-                  success: 'true',
-                  message: 'Successfully Connected!',
-                  error: '',
-                };
-              } catch (error: any) {
-                return {
-                  success: 'false',
-                  message: '',
-                  error: error.message,
-                };
+              if (operatingSystem === 'Linux') {
+                try {
+                  // wait for 5 seconds before connecting for SSH to be up
+                  setTimeout(async () => {
+                    const closed = await connectVNC(systemIP, privateKey);
+                    if (closed === false) {
+                      console.log('VNC Closed, stopping system');
+                      await ociConnectUser.stopInstance(system.id);
+                    }
+                    return {
+                      success: 'true',
+                      message: 'Successfully closed connection',
+                      error: '',
+                    };
+                  }, 5000);
+                } catch (error: any) {
+                  console.log('Exception in connectVNC: ', error);
+                  event.sender.send(
+                    'create-system-update',
+                    'Exception Occured while connecting to your System, please try again later'
+                  );
+                  return {
+                    success: 'false',
+                    message: '',
+                    error: error.message,
+                  };
+                }
+              } else {
+                try {
+                  // get windows initial credentials
+                  const [usernmae, password] =
+                    await ociConnectUser.getInitialWindowsCredentials(
+                      system.id
+                    );
+                  // wait for 5 seconds before connecting for SSH to be up
+                  const closed = await connectRDP(systemIP, usernmae, password);
+                  if (closed === false) {
+                    console.log('RDP Closed, stopping system');
+                    await ociConnectUser.stopInstance(system.id);
+                  }
+                  return {
+                    success: 'true',
+                    message: 'Successfully closed connection',
+                    error: '',
+                  };
+                } catch (error: any) {
+                  console.log('Exception in connectRDP: ', error);
+                  event.sender.send(
+                    'create-system-update',
+                    'Exception Occured while connecting to your System, please try again later'
+                  );
+                  return {
+                    success: 'false',
+                    message: '',
+                    error: error.message,
+                  };
+                }
               }
             }
           }, 5000);
         }
       }, 5000);
+      return { success: 'true', message: 'Starting System', error: '' };
 
       // return public key
     } catch (error: any) {
+      event.sender.send('create-system-update', 'Exception Occured');
       console.log(
         'Exception in create-system icpMain handler in main.ts file: ',
         error
       );
-
-      if (error.statusCode === 409) {
-        return {
-          success: 'false',
-          message: null,
-          error: 'System Names must be unique! \n Please try again.',
-        };
-      }
-      return { success: 'false', message: null, error: error.message };
+      return { success: 'false', system: null, error: error.message };
     }
   }
 );
@@ -546,7 +674,7 @@ ipcMain.handle(
 // start and stop OCI VM System
 ipcMain.handle(
   'start-system',
-  async (event, { instanceConfigurationId, displayName }) => {
+  async (event, { instanceConfigurationId, displayName, operatingSystem }) => {
     console.log(
       'start-system received: ',
       displayName,
@@ -580,7 +708,7 @@ ipcMain.handle(
           // inform renderer process that system is up
           event.sender.send(
             'start-system-update',
-            'Your System is ready! Connecting'
+            'Your System is almost ready, just a little longer!'
           );
 
           // get system IP
@@ -588,25 +716,69 @@ ipcMain.handle(
             instanceConfigurationId
           );
           // connect to system
-          try {
-            await launchVNCSoftware(systemIP, privateKey);
-            console.log('VNC Closed, stopping system');
-            await ociConnectUser.stopInstance(system.id);
-            return {
-              success: 'true',
-              message: 'Successfully Connected!',
-              error: '',
-            };
-          } catch (error) {
-            return {
-              success: 'false',
-              message: 'Error Connecting to System',
-              error: error.message,
-            };
+          if (operatingSystem === 'Linux') {
+            try {
+              // wait for 30 seconds before connecting for SSH to be up
+              console.log('Waiting for 30 seconds before connecting');
+              setTimeout(async () => {
+                event.sender.send(
+                  'start-system-update',
+                  'Your System is ready, connecting now!'
+                );
+                const closed = await connectVNC(systemIP, privateKey);
+                console.log(closed);
+                console.log('VNC Closed, stopping system');
+                await ociConnectUser.stopInstance(system.id);
+                return {
+                  success: 'true',
+                  message: 'Successfully Connected!',
+                  error: '',
+                };
+              }, 50000);
+            } catch (error) {
+              console.log('Exception in connectVNC: ', error);
+              event.sender.send(
+                'start-system-update',
+                'Exception Occured while connecting to your System, please try again later'
+              );
+              return {
+                success: 'false',
+                message: 'Error Connecting to System',
+                error: error.message,
+              };
+            }
+          } else {
+            try {
+              const [usernmae, password] =
+                await ociConnectUser.getInitialWindowsCredentials(system.id);
+              // wait for 5 seconds before connecting for SSH to be up
+              const closed = await connectRDP(systemIP, usernmae, password);
+              if (closed === false) {
+                console.log('RDP Closed, stopping system');
+                await ociConnectUser.stopInstance(systemId);
+              }
+              return {
+                success: 'true',
+                message: 'Successfully closed connection',
+                error: '',
+              };
+            } catch (error: any) {
+              console.log('Exception in connectRDP: ', error);
+              event.sender.send(
+                'create-system-update',
+                'Exception Occured while connecting to your System, please try again later'
+              );
+              return {
+                success: 'false',
+                message: '',
+                error: error.message,
+              };
+            }
           }
         }
-      }, 5000);
+      });
     } catch (error: any) {
+      event.sender.send('start-system-update', 'Exception Occured');
       console.log(
         'Exception in start-system icpMain handler in main.ts file: ',
         error
@@ -618,7 +790,7 @@ ipcMain.handle(
 
 ipcMain.handle(
   'reconnect-system',
-  async (event, { instanceConfigurationId, displayName }) => {
+  async (event, { systemId, displayName, operatingSystem }) => {
     console.log('reconnect-system received');
     try {
       event.sender.send(
@@ -632,33 +804,71 @@ ipcMain.handle(
         );
       const privateKey = await ociConnectUser.getSecretContent(secretName);
 
-      const systemIP = await ociConnectUser.getInstanceIP(
-        instanceConfigurationId
-      );
+      const systemIP = await ociConnectUser.getInstanceIP(systemId);
       // connect to system
-      event.sender.send('reconnect-system-update', 'Connecting to your System');
-      try {
-        await launchVNCSoftware(systemIP, privateKey);
-        console.log('VNC Closed, stopping system');
-        await ociConnectUser.stopInstance(instanceConfigurationId.id);
-        return {
-          success: 'true',
-          message: 'Successfully Connected!',
-          error: '',
-        };
-      } catch (error: any) {
-        return {
-          success: 'false',
-          message: '',
-          error: error.message,
-        };
+      event.sender.send(
+        'reconnect-system-update',
+        'Connecting to your System, this may take a minute'
+      );
+      if (operatingSystem === 'Linux') {
+        try {
+          const closed = await connectVNC(systemIP, privateKey);
+          console.log(closed);
+          console.log('VNC Closed, stopping system');
+          await ociConnectUser.stopInstance(systemId);
+          return {
+            success: 'true',
+            message: 'Successfully Connected!',
+            error: '',
+          };
+        } catch (error: any) {
+          console.log('Exception in connectVNC: ', error);
+          event.sender.send(
+            'create-system-update',
+            'Exception Occured while connecting to your System, please try again later'
+          );
+          return {
+            success: 'false',
+            message: '',
+            error: error.message,
+          };
+        }
+      } else {
+        try {
+          // get windows initial credentials
+          const [usernmae, password] =
+            await ociConnectUser.getInitialWindowsCredentials(systemId);
+          // wait for 5 seconds before connecting for SSH to be up
+          const closed = await connectRDP(systemIP, usernmae, password);
+          if (closed === false) {
+            console.log('RDP Closed, stopping system');
+            await ociConnectUser.stopInstance(systemId);
+          }
+          return {
+            success: 'true',
+            message: 'Successfully closed connection',
+            error: '',
+          };
+        } catch (error: any) {
+          console.log('Exception in connectRDP: ', error);
+          event.sender.send(
+            'create-system-update',
+            'Exception Occured while connecting to your System, please try again later'
+          );
+          return {
+            success: 'false',
+            message: '',
+            error: error.message,
+          };
+        }
       }
     } catch (error: any) {
+      event.sender.send('reconnect-system-update', 'Exception Occured');
       console.log(
-        'Exception in start-system icpMain handler in main.ts file: ',
+        'Exception in reconnect-system icpMain handler in main.ts file: ',
         error
       );
-      return { success: 'false', message: null, error: error.message };
+      return { success: 'false', system: null, error: error.message };
     }
   }
 );
@@ -701,7 +911,7 @@ ipcMain.handle('list-user-systems', async () => {
   console.log('list-user-systems received');
   try {
     const systems = await ociConnectUser.listUserInstances();
-    console.log('Systems received from OCI: ', systems);
+    console.log('Systems received from OCI');
     return { success: 'true', systems };
   } catch (error) {
     console.log(
@@ -727,64 +937,6 @@ ipcMain.handle('list-system-configs', async () => {
     return { success: 'false', error };
   }
 });
-
-// Get SSH Key from OCI Vault
-/*
-ipcMain.handle('vault-export-ssh-key', async (event, keyId: string) => {
-  const { publicKey, privateKey } = await GenerateKeys();
-  console.log('vault-export-ssh-key received');
-  try {
-    const key = await ociConnectAdmin.exportSSHKey(keyId, publicKey);
-    console.log('Key received from OCI: ', key.encryptedKey);
-    // const decryptedSSHKey = await DecryptKey(privateKey, key.encryptedKey);
-
-    const decryptedSSHKey = DecryptWrappedKey(privateKey, key.encryptedKey);
-    console.log('Decrypted SSH Key: ', decryptedSSHKey);
-    return decryptedSSHKey;
-  } catch (error) {
-    console.log(
-      'Exception in vault-export-ssh-key icpMain handler in main.ts file: ',
-      error
-    );
-    return { success: 'false', error };
-  }
-});
-*/
-
-/*
-// List SSH Keys
-ipcMain.handle('vault-list-ssh-keys', async () => {
-  console.log('vault-list-ssh-keys received');
-  try {
-    const keys = await ociConnectAdmin.listSSHKeys();
-    console.log('Keys received from OCI: ', keys);
-    return keys;
-  } catch (error) {
-    console.log(
-      'Exception in vault-list-ssh-keys icpMain handler in main.ts file: ',
-      error
-    );
-    return { success: 'false', error };
-  }
-});
-*/
-
-/*
-ipcMain.handle('vault-get-ssh-key', async (event, keyId: string) => {
-  console.log('vault-get-ssh-key received');
-  try {
-    const key = await ociConnectAdmin.getSSHKey(keyId);
-    console.log('Key received from OCI: ', key);
-    return key;
-  } catch (error) {
-    console.log(
-      'Exception in vault-get-ssh-key icpMain handler in main.ts file: ',
-      error
-    );
-    return { success: 'false', error };
-  }
-});
-*/
 
 ipcMain.handle('logout', async () => {
   console.log('logout received');
@@ -861,10 +1013,14 @@ const createWindow = async () => {
   };
 
   // adjust the window size
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
   mainWindow = new BrowserWindow({
     frame: true,
     fullscreen: false,
     show: false,
+    width,
+    height,
     icon: getAssetPath('icon.png'),
     backgroundColor: '#3DCAF5',
     webPreferences: {
