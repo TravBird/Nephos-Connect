@@ -24,7 +24,8 @@ body {
   align-items: center;
   justify-content: space-between;
   flex-direction: row;
-
+  margin-top: 20px;
+  width: 100%;;
 }
 
 #PowerOffButton{
@@ -47,6 +48,9 @@ button {
 #root{
   height: 100%;
   width: 100%;
+  overflow-y: scroll;
+  margin: 10%;
+  margin-bottom: 100px;
 }
 
 .home{
@@ -124,7 +128,6 @@ a:hover {
 }
 
 #LogoutButton{
-  position: absolute;
   right: 0;
   margin-right: 10px;
 }
@@ -278,12 +281,41 @@ a:hover {
   outline: none;
   margin: 0;
   padding: 0;
+}
 
+.ButtonContainer{
+  display: flex;
+  justify-content: space-evenly;
+  margin-top: 10px;
 }
 
 .DeleteButton{
   /* position in bottom left corner */
   color: red;
-  position: absolute;
+  float: right;
+}
 
+#UserSystemSelection{
+  overflow-y: auto;
+  text-align: center;
+}
+
+.ButtonContainer > button{
+  width: 20%;
+}
+
+.RefreshIcon{
+  position: absolute;
+  margin-top: 25px;
+  margin-right: 20px;
+  right: 20px
+}
+
+.RefreshIcon > .Loader {
+  border: 16px solid #8ed0e4;
+  border-top: 16px solid #4a7f8f; /* Blue */
+  border-radius: 50%;
+  width: 0px;
+  height: 0px;
+  animation: spin 1.5s infinite ease-in-out;
 }
