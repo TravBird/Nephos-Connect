@@ -1,7 +1,11 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable react/prop-types */
 /* eslint-disable react/jsx-filename-extension */
-import { MemoryRouter as Router, useNavigate } from 'react-router-dom';
+import {
+  Navigate,
+  MemoryRouter as Router,
+  useNavigate,
+} from 'react-router-dom';
 import { SetStateAction, useEffect, useState } from 'react';
 import './App.css';
 
@@ -40,6 +44,7 @@ function ListNewSystem({
   console.log(config);
   console.log(selectedNewSystem);
   const { id, displayName } = config;
+  const operatingSystem = config.freeformTags.OS;
   return (
     <li className="ConfigInfo" key={config.id}>
       <div className="InitialInfo">
@@ -47,7 +52,9 @@ function ListNewSystem({
           <input
             type="radio"
             checked={selectedNewSystem.id === config.id}
-            onChange={() => setSelectedNewSystem({ id, displayName })}
+            onChange={() =>
+              setSelectedNewSystem({ id, displayName, operatingSystem })
+            }
           />
           {displayName}
         </span>
@@ -125,6 +132,7 @@ function NewSystemSelection({
 async function createSystemRequest(
   instanceConfigurationId: string,
   displayName: string,
+  operatingSystem: string,
   setError: any,
   setLoading: any
 ) {
@@ -136,13 +144,19 @@ async function createSystemRequest(
     'create-system-update',
     (event, message) => {
       console.log(message);
-      setLoading(message);
+      if (message.includes('Exception')) {
+        setLoading('');
+        setError(message);
+      } else {
+        setLoading(message);
+      }
     }
   );
   const system = await window.electron.ipcRendererOCI.createSystem(
     'create-system',
     instanceConfigurationId,
-    displayName
+    displayName,
+    operatingSystem
   );
   console.log(system);
 
@@ -164,7 +178,7 @@ function CreateSystemButton({
 }: any) {
   console.log(systemDisplayName);
   let name = '';
-  const { id, displayName } = selectedNewSystem;
+  const { id, displayName, operatingSystem } = selectedNewSystem;
   if (systemDisplayName === '') {
     name = displayName;
   } else {
@@ -173,7 +187,9 @@ function CreateSystemButton({
   return (
     <button
       type="button"
-      onClick={() => createSystemRequest(id, name, setError, setLoading)}
+      onClick={() =>
+        createSystemRequest(id, name, operatingSystem, setError, setLoading)
+      }
       // id={selected}
     >
       Create Selected new System? : {name}
@@ -236,17 +252,20 @@ function CreateSystemForm({
   );
 }
 
-async function getUserSystems(setError: any) {
+async function getUserSystems(setError: any, setRefreshing: any) {
+  setRefreshing(true);
   const result = await window.electron.ipcRendererOCI.listUserSystems(
     'list-user-systems'
   );
   console.log(result);
   if (result.success === 'true') {
     console.log('Successfully retrieved user systems');
+    setRefreshing(false);
     return result.systems;
   }
   console.log('Error retrieving user systems');
   setError(result.error.message);
+  setRefreshing(false);
   return [];
 }
 
@@ -284,10 +303,13 @@ function ListSystem({ system, selected, setSelected }: any) {
         <div className="AdditionalInfo">
           <h4>System Specs:</h4>
           <ul>
+            <li>OS: {system.freeformTags.OS}</li>
             <li>Memory: {system.shapeConfig.memoryInGBs} GB</li>
-            <li>Storage: {system.shapeConfig.storageInGBs} GB</li>
-            <li>OCPUS: {system.shapeConfig.ocpus}</li>
-            <li>GPU: {system.shapeConfig.gpus}</li>
+            <li>
+              OCPUs: {system.shapeConfig.ocpus}- ({' '}
+              {system.shapeConfig.processorDescription})
+            </li>
+            <li>GPUs: {system.shapeConfig.gpus}</li>
           </ul>
         </div>
       ) : null}
@@ -297,7 +319,7 @@ function ListSystem({ system, selected, setSelected }: any) {
 
 function SysSelection({ systems, selected, setSelected }: any) {
   return (
-    <div id="User System Selection">
+    <div id="UserSystemSelection">
       <h1>Select your System below</h1>
       <ul>
         {systems.map((system: any) => (
@@ -315,6 +337,7 @@ function SysSelection({ systems, selected, setSelected }: any) {
 async function startSystemRequest(
   instanceConfigurationId: string,
   displayName: string,
+  operatingSystem: string,
   setError: any,
   setLoading: any
 ) {
@@ -325,15 +348,21 @@ async function startSystemRequest(
     'start-system-update',
     (event, message: String) => {
       console.log(message);
-      setLoading(message);
+      if (message.includes('Exception')) {
+        setLoading('');
+        setError(message);
+      } else {
+        setLoading(message);
+      }
     }
   );
   const system = await window.electron.ipcRendererOCI.startSystem(
     'start-system',
     instanceConfigurationId,
-    displayName
+    displayName,
+    operatingSystem
   );
-  if (system.success === 'success') {
+  if (system.success === 'true') {
     // system up, connecting
     console.log(system.message);
   } else {
@@ -346,6 +375,7 @@ async function startSystemRequest(
 async function reconnectSystemRequest(
   instanceConfigurationId: string,
   displayName: string,
+  operatingSystem: string,
   setError: any,
   setLoading: any
 ) {
@@ -357,14 +387,20 @@ async function reconnectSystemRequest(
     'reconnect-system-update',
     (event, message: String) => {
       console.log(message);
-      setLoading(message);
+      if (message.includes('Exception') || message.includes('Error')) {
+        setLoading('');
+        setError(message);
+      } else {
+        setLoading(message);
+      }
     }
   );
 
   const system = await window.electron.ipcRendererOCI.reconnectSystem(
     'reconnect-system',
     instanceConfigurationId,
-    displayName
+    displayName,
+    operatingSystem
   );
   if (system.success === 'success') {
     // system up, connecting
@@ -406,13 +442,14 @@ function StartSystemButton({ selected, setError, setLoading }: any) {
         startSystemRequest(
           selected.id,
           selected.displayName,
+          selected.freeformTags.OS,
           setError,
           setLoading
         )
       }
       id={selected.id}
     >
-      Start {selected.displayName}?
+      Start <b>{selected.displayName}</b>?
     </button>
   );
 }
@@ -426,6 +463,7 @@ function ReconnectSystemButton({ selected, setLoading, setError }: any) {
         reconnectSystemRequest(
           selected.id,
           selected.displayName,
+          selected.freeformTags.OS,
           setError,
           setLoading
         )
@@ -477,8 +515,16 @@ function DeleteSystemButton({ selected, setError }: any) {
       id={selected.id}
       className="DeleteButton"
     >
-      Delete {selected.displayName}?
+      Delete <b>{selected.displayName}</b>?
     </button>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <div className="RefreshIcon">
+      <div className="Loader" />
+    </div>
   );
 }
 
@@ -492,22 +538,50 @@ export default function MainMenu({ ErrorPopup, error, setError }: any) {
   const [selectedNewSystem, setSelectedNewSystem] = useState({
     id: '',
     displayName: '',
+    os: '',
   });
   const [openNewSystemSelection, setOpenNewSystemSelection] = useState(false);
   const [loading, setLoading] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     async function fetchData() {
-      // You can await here
-      const response = await getUserSystems(setError);
+      const response = await getUserSystems(setError, setRefreshing);
       setSystems(response);
     }
     fetchData();
   }, [setError]);
 
+  // get user systems every minute
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      if (!navigator.onLine) {
+        window.electron.ipcRendererOCIauth
+          .logout('logout')
+          .then((result) => {
+            console.log(result);
+            if (result.success === 'true') {
+              localStorage.removeItem('authenticated');
+              return navigate('/');
+            }
+            console.log('Logout failed');
+            setError(result.error.message);
+            return null;
+          })
+          .catch((err) => console.log(err));
+      } else {
+        const response = await getUserSystems(setError, setRefreshing);
+        setSystems(response);
+      }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [setError]);
+
   if (systems.length > 0) {
     return (
       <div>
+        {refreshing ? <RefreshIcon /> : null}
         {loading !== '' ? (
           <LoadingScreen loadingMessage={loading} />
         ) : (
@@ -522,36 +596,38 @@ export default function MainMenu({ ErrorPopup, error, setError }: any) {
               setError={setError}
               setLoading={setLoading}
             />
-            {selected.id !== '' && selected.lifecycleState === 'RUNNING' ? (
-              <ReconnectSystemButton
-                selected={selected}
-                setError={setError}
-                setLoading={setLoading}
-              />
-            ) : null}
-            {selected.id !== '' && selected.lifecycleState !== 'RUNNING' ? (
-              <StartSystemButton
-                selected={selected}
-                setError={setError}
-                setLoading={setLoading}
-              />
-            ) : null}
-            <OpenSystemCreateButton
-              setOpenNewSystemSelection={setOpenNewSystemSelection}
-            />
-            {openNewSystemSelection ? (
-              <CreateSystemForm
-                selectedNewSystem={selectedNewSystem}
-                setSelectedNewSystem={setSelectedNewSystem}
-                setError={setError}
+            <div className="ButtonContainer">
+              {selected.id !== '' && selected.lifecycleState === 'RUNNING' ? (
+                <ReconnectSystemButton
+                  selected={selected}
+                  setError={setError}
+                  setLoading={setLoading}
+                />
+              ) : null}
+              {selected.id !== '' && selected.lifecycleState !== 'RUNNING' ? (
+                <StartSystemButton
+                  selected={selected}
+                  setError={setError}
+                  setLoading={setLoading}
+                />
+              ) : null}
+              <OpenSystemCreateButton
                 setOpenNewSystemSelection={setOpenNewSystemSelection}
-                setLoading={setLoading}
               />
-            ) : null}
-            <LogoutButton setError={setError} />
-            {selected.id !== '' ? (
-              <DeleteSystemButton selected={selected} setError={setError} />
-            ) : null}
+              {openNewSystemSelection ? (
+                <CreateSystemForm
+                  selectedNewSystem={selectedNewSystem}
+                  setSelectedNewSystem={setSelectedNewSystem}
+                  setError={setError}
+                  setOpenNewSystemSelection={setOpenNewSystemSelection}
+                  setLoading={setLoading}
+                />
+              ) : null}
+              <LogoutButton setError={setError} />
+              {selected.id !== '' ? (
+                <DeleteSystemButton selected={selected} setError={setError} />
+              ) : null}
+            </div>
           </div>
         )}
       </div>
