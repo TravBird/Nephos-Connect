@@ -29,7 +29,6 @@ const sshpk = require('sshpk');
 const forge = require('node-forge');
 
 const { URL } = require('url');
-const shutdown = require('electron-shutdown-command');
 
 const wifi = require('node-wifi');
 
@@ -45,11 +44,6 @@ let newUserName = '';
 
 let ociConnectUser: OCIConnect;
 
-// handle shutdown request from renderer
-ipcMain.handle('shutdown', () => {
-  console.log('shutdown request received');
-  shutdown.shutdown();
-});
 
 async function connectVNC(ipAddress: string, sshKey: string) {
   // Testing function to launch VNC software
@@ -799,6 +793,7 @@ ipcMain.handle(
   'reconnect-system',
   async (event, { systemId, displayName, operatingSystem }) => {
     console.log('reconnect-system received');
+    console.log(systemId, displayName, operatingSystem);
     try {
       event.sender.send(
         'reconnect-system-update',

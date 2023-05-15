@@ -8,13 +8,11 @@ import * as responses from 'oci-core/lib/response';
 import * as vault from 'oci-vault';
 import * as secrets from 'oci-secrets';
 import * as workrequests from 'oci-workrequests';
-import { LOG } from 'oci-sdk';
 import * as fs from 'fs';
 import os from 'os';
 import { createPublicKey } from 'crypto';
 
 const crypto = require('crypto');
-const sshpk = require('sshpk');
 
 const filePath = `${os.homedir()}/.oci/config`;
 const keyPath = `${os.homedir()}/.oci/keys/`;
