@@ -9,12 +9,14 @@ import { useEffect, useState } from 'react';
 import './App.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faWifi } from '@fortawesome/free-solid-svg-icons';
+import isOnline from 'is-online';
 import signal0 from '../../assets/signal/0signal.png';
 import signal1 from '../../assets/signal/1signal.png';
 import signal2 from '../../assets/signal/2signal.png';
 import signal3 from '../../assets/signal/3signal.png';
 import signal4 from '../../assets/signal/4signal.png';
 import signal5 from '../../assets/signal/max_signal.png';
+import logo from '../../assets/Nephos-Logo512.png';
 import { Home, Loading } from './Login';
 import MainMenu from './MainMenu';
 
@@ -57,7 +59,7 @@ async function getWifiNetworks() {
   );
   return result;
 }
-function ListWifi({ network, selectedNetwork, setSelectedNetwork }) {
+function ListWifi({ network, setError }) {
   const [open, setOpen] = useState(false);
 
   const signalStrengthIcon = (signalStrength) => {
@@ -126,7 +128,7 @@ function ListWifi({ network, selectedNetwork, setSelectedNetwork }) {
             <label htmlFor="password">
               Password:
               <input
-                type="password"
+                type="text"
                 id="password"
                 name="password"
                 placeholder="Password"
@@ -134,8 +136,20 @@ function ListWifi({ network, selectedNetwork, setSelectedNetwork }) {
             </label>
             <button
               type="button"
+              className="ConnectButton"
               onClick={() => {
                 console.log('Connecting to WiFi network');
+                for (
+                  let i = 0;
+                  i < document.getElementsByClassName('ConnectButton').length;
+                  i += 1
+                ) {
+                  (
+                    document.getElementsByClassName('ConnectButton')[
+                      i
+                    ] as HTMLInputElement
+                  ).disabled = true;
+                }
                 window.electron.ipcRendererInternet
                   .addWifiNetwork('add-wifi-network', [
                     network.ssid,
@@ -146,14 +160,60 @@ function ListWifi({ network, selectedNetwork, setSelectedNetwork }) {
                       console.log('Successfully connected to WiFi network');
                       document.getElementById('error').innerHTML =
                         'Connected to WiFi network';
-                    } else {
-                      console.log('Error connecting to WiFi network');
-                      document.getElementById('error').innerHTML =
-                        'Failed to connect to WiFi network, please try again';
+                      // enable all buttons
+                      for (
+                        let i = 0;
+                        i <
+                        document.getElementsByClassName('ConnectButton').length;
+                        i += 1
+                      ) {
+                        (
+                          document.getElementsByClassName('ConnectButton')[
+                            i
+                          ] as HTMLInputElement
+                        ).disabled = false;
+                      }
+                      return true;
                     }
+                    console.log('Error connecting to WiFi network');
+                    setError(
+                      'Failed to connect to WiFi network, please try again'
+                    );
+                    // enable all buttons
+                    for (
+                      let i = 0;
+                      i <
+                      document.getElementsByClassName('ConnectButton').length;
+                      i += 1
+                    ) {
+                      (
+                        document.getElementsByClassName('ConnectButton')[
+                          i
+                        ] as HTMLInputElement
+                      ).disabled = false;
+                    }
+                    return false;
                   })
                   .catch((error) => {
                     console.log(error);
+                    setError(
+                      'Failed to connect to WiFi network, please try again: ',
+                      error
+                    );
+                    // enable all buttons
+                    for (
+                      let i = 0;
+                      i <
+                      document.getElementsByClassName('ConnectButton').length;
+                      i += 1
+                    ) {
+                      (
+                        document.getElementsByClassName('ConnectButton')[
+                          i
+                        ] as HTMLInputElement
+                      ).disabled = false;
+                    }
+                    return false;
                   });
               }}
             >
@@ -161,14 +221,13 @@ function ListWifi({ network, selectedNetwork, setSelectedNetwork }) {
               Submit{' '}
             </button>
           </form>
-          <div id="error" />
         </div>
       ) : null}
     </li>
   );
 }
 
-function WifiSelection({ selectedNetwork, setSelectedNetwork }) {
+function WifiSelection({ setError }) {
   const [networks, setNetworks] = useState([]);
 
   useEffect(() => {
@@ -192,11 +251,7 @@ function WifiSelection({ selectedNetwork, setSelectedNetwork }) {
       <div id="Create Wifi Select">
         <ul>
           {networks.map((network) => (
-            <ListWifi
-              network={network}
-              selectedNetwork={selectedNetwork}
-              setSelectedNetwork={setSelectedNetwork}
-            />
+            <ListWifi network={network} setError={setError} />
           ))}{' '}
         </ul>
       </div>
@@ -205,13 +260,7 @@ function WifiSelection({ selectedNetwork, setSelectedNetwork }) {
   return <div className="Loader" />;
 }
 
-function WifiSettings({
-  setOpenWifiSettings,
-  wifiNetworks,
-  internet,
-  setInternet,
-}) {
-  const [selectedNetwork, setSelectedNetwork] = useState('');
+function WifiSettings({ setOpenWifiSettings, setInternet, setError }) {
   setInternet(navigator.onLine);
   return (
     <div id="WifiSettings" className="modal">
@@ -223,10 +272,7 @@ function WifiSettings({
           &times;
         </span>
         <h2>Select a Wireless Network</h2>
-        <WifiSelection
-          selectedNetwork={selectedNetwork}
-          setSelectedNetwork={setSelectedNetwork}
-        />
+        <WifiSelection setError={setError} />
       </div>
     </div>
   );
@@ -234,22 +280,11 @@ function WifiSettings({
 
 function LoginRegisterChoice({ error, setError }: any) {
   const [activeState, setActiveState] = useState('Home');
-  const authenticated = localStorage.getItem('authenticated');
-  const navigate = useNavigate();
   const [openWifiSettings, setOpenWifiSettings] = useState(false);
   const [loadingMessageState, setLoadingMessageState] = useState('');
-  const [wifiNetworks, setWifiNetworks] = useState([]);
-  const [internet, setInternet] = useState(navigator.onLine);
-
-  function handlePowerOff() {
-    window.electron.ipcRendererShutdown.shutdown('shutdown');
-  }
+  const [internet, setInternet] = useState(false);
 
   function closeWifiSettings() {
-    setInternet(navigator.onLine);
-    if (navigator.onLine) {
-      setInternet(true);
-    }
     setOpenWifiSettings(false);
   }
 
@@ -263,15 +298,7 @@ function LoginRegisterChoice({ error, setError }: any) {
   return (
     <>
       <div id="TopMenu">
-        <button
-          type="button"
-          id="PowerOffButton"
-          onClick={() => {
-            handlePowerOff();
-          }}
-        >
-          Power Off
-        </button>
+      <img src={logo} alt="Nephos Logo" className="Logo" />
         <button
           type="button"
           id="WirelessSettingsButton"
@@ -309,9 +336,8 @@ function LoginRegisterChoice({ error, setError }: any) {
         {openWifiSettings ? (
           <WifiSettings
             setOpenWifiSettings={setOpenWifiSettings}
-            wifiNetworks={wifiNetworks}
-            internet={internet}
             setInternet={setInternet}
+            setError={setError}
           />
         ) : null}
         <Loading

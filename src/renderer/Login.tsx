@@ -2,6 +2,7 @@
 import { MemoryRouter as Router, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import './App.css';
+import isOnline from 'is-online';
 
 async function loginRequest(
   onLoading,
@@ -13,8 +14,11 @@ async function loginRequest(
   setLoadingMessageState,
   setError
 ) {
-  if (!navigator.onLine) {
+  if (await isOnline()) {
+    setInternet(true);
+  } else {
     setInternet(false);
+    setError('Error: No internet connection');
     return;
   }
   onLoading();
@@ -98,7 +102,9 @@ async function loginRequest(
             }
             // login post setup failed
             if (
-              postLocalSetupLoginResult.error.includes('Api key limit has exceeded')
+              postLocalSetupLoginResult.error.includes(
+                'Api key limit has exceeded'
+              )
             ) {
               setError(
                 'Maximum number of devices (3) reached, please contact an administrator to remove a device'
@@ -200,19 +206,22 @@ export function Home({
   );
 
   useEffect(() => {
-    if (!navigator.onLine) {
-      console.log('No internet connection');
-      setInternet(false);
+    async function checkOnline() {
+      if ((await isOnline()) === false) {
+        console.log('No internet connection');
+        setInternet(false);
+        const buttons = document.getElementsByClassName('LoginButton');
+        for (let i = 0; i < buttons.length; i++) {
+          (buttons[i] as HTMLInputElement).disabled = false;
+        }
+      }
+      setInternet(true);
       const buttons = document.getElementsByClassName('LoginButton');
       for (let i = 0; i < buttons.length; i++) {
-        buttons[i].disabled = true;
+        (buttons[i] as HTMLInputElement).disabled = false;
       }
     }
-    setInternet(true);
-    const buttons = document.getElementsByClassName('LoginButton');
-    for (let i = 0; i < buttons.length; i++) {
-      buttons[i].disabled = false;
-    }
+    checkOnline();
   }, [setInternet]);
   return (
     <div className="Home">
@@ -240,9 +249,12 @@ export function Home({
             <button
               className="LoginButton"
               type="button"
-              onClick={() => {
-                if (!navigator.onLine) {
+              onClick={async () => {
+                if (await isOnline()) {
+                  setInternet(true);
+                } else {
                   setInternet(false);
+                  setError('Error: No internet connection');
                   return;
                 }
                 window.electron.ipcRendererOCIauth

@@ -1,12 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 const electronHandler = {
-  ipcRendererShutdown: {
-    async shutdown(channel: 'shutdown') {
-      const result = await ipcRenderer.invoke(channel);
-      return result;
-    },
-  },
   ipcRendererOCIauth: {
     async login_sso(channel: 'oci-login-sso') {
       const result = await ipcRenderer.invoke(channel);
@@ -45,12 +39,12 @@ const electronHandler = {
     },
     async reconnectSystem(
       channel: 'reconnect-system',
-      instanceConfigurationId: string,
+      systemId: string,
       displayName: string,
       operatingSystem: string
     ) {
       const result = await ipcRenderer.invoke(channel, {
-        instanceConfigurationId,
+        systemId,
         displayName,
         operatingSystem,
       });

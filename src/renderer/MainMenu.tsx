@@ -191,6 +191,7 @@ function CreateSystemButton({
         createSystemRequest(id, name, operatingSystem, setError, setLoading)
       }
       // id={selected}
+      style={{ width: '51%' }}
     >
       Create Selected new System? : {name}
     </button>
@@ -238,7 +239,9 @@ function CreateSystemForm({
               onChange={(e) => {
                 setDisplayName(e.target.value);
               }}
+              style={{ width: '50%' }}
             />
+            <br />
             <CreateSystemButton
               selectedNewSystem={selectedNewSystem}
               systemDisplayName={displayName}
@@ -272,6 +275,7 @@ async function getUserSystems(setError: any, setRefreshing: any) {
 function ListSystem({ system, selected, setSelected }: any) {
   const [open, setOpen] = useState(false);
   const { id, displayName, lifecycleState } = system;
+  const operatingSystem = system.freeformTags.OS;
   return (
     <li className="ConfigInfo" key={id}>
       <div className="InitialInfo">
@@ -279,7 +283,15 @@ function ListSystem({ system, selected, setSelected }: any) {
           <input
             type="radio"
             checked={selected.displayName === displayName}
-            onChange={() => setSelected({ id, displayName, lifecycleState })}
+            onChange={() => {
+              setSelected({
+                id,
+                displayName,
+                lifecycleState,
+                operatingSystem,
+              });
+              console.log(selected);
+            }}
           />
           {displayName}: {lifecycleState}{' '}
           {lifecycleState === 'RUNNING'
@@ -303,7 +315,7 @@ function ListSystem({ system, selected, setSelected }: any) {
         <div className="AdditionalInfo">
           <h4>System Specs:</h4>
           <ul>
-            <li>OS: {system.freeformTags.OS}</li>
+            <li>OS: {operatingSystem}</li>
             <li>Memory: {system.shapeConfig.memoryInGBs} GB</li>
             <li>
               OCPUs: {system.shapeConfig.ocpus}- ({' '}
@@ -442,7 +454,7 @@ function StartSystemButton({ selected, setError, setLoading }: any) {
         startSystemRequest(
           selected.id,
           selected.displayName,
-          selected.freeformTags.OS,
+          selected.operatingSystem,
           setError,
           setLoading
         )
@@ -463,14 +475,14 @@ function ReconnectSystemButton({ selected, setLoading, setError }: any) {
         reconnectSystemRequest(
           selected.id,
           selected.displayName,
-          selected.freeformTags.OS,
+          selected.operatingSystem,
           setError,
           setLoading
         )
       }
       id={selected.id}
     >
-      Reconnect to {selected.displayName}?
+      Reconnect to {selected.operatingSystem}?
     </button>
   );
 }
@@ -534,6 +546,7 @@ export default function MainMenu({ ErrorPopup, error, setError }: any) {
     id: '',
     displayName: '',
     lifecycleState: '',
+    os: '',
   });
   const [selectedNewSystem, setSelectedNewSystem] = useState({
     id: '',
