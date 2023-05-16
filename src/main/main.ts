@@ -172,6 +172,7 @@ async function connectRDP(ipAddress: string, username: string) {
       `/v:${ipAddress}`,
       '/sound:sys:alsa',
       '/microphone:sys:alsa',
+      '/f',
       // '/usb:id,dev:1a86:7523',
     ]);
     rdpViewer.stdout.on('data', (data) => {
