@@ -171,12 +171,11 @@ async function connectRDP(
   const { execFile } = require('child_process');
   console.log('Launching RDP Viewer');
   console.log(
-    `Connecting with username: ${username} and password: ${password}`
+    `Connecting to ${ipAddress} with username: ${username} and password: ${password}`
   );
   try {
     const rdpViewer = await execFile(rdpPath, [
       `/u:${username}`,
-      `/p:${password}`,
       `/v:${ipAddress}`,
       '/sound:sys:alsa',
       '/microphone:sys:alsa',
