@@ -513,6 +513,11 @@ ipcMain.handle('oci-register-sso', async () => {
 ipcMain.handle(
   'create-system',
   async (event, { instanceConfigurationId, displayName, operatingSystem }) => {
+    console.log('Create System Request Recieved with params: ', {
+      instanceConfigurationId,
+      displayName,
+      operatingSystem,
+    });
     try {
       event.sender.send(
         'create-system-update',

@@ -275,7 +275,12 @@ async function getUserSystems(setError: any, setRefreshing: any) {
 function ListSystem({ system, selected, setSelected }: any) {
   const [open, setOpen] = useState(false);
   const { id, displayName, lifecycleState } = system;
-  const operatingSystem = system.freeformTags.OS;
+  let operatingSystem = '';
+  try {
+    operatingSystem = system.freeformTags.OS;
+  } catch (e) {
+    operatingSystem = 'Unknown';
+  }
   return (
     <li className="ConfigInfo" key={id}>
       <div className="InitialInfo">
