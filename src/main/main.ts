@@ -103,9 +103,7 @@ async function connectVNC(ipAddress: string, sshKey: string) {
       console.log('new connection');
     });
   });
-
-  // hardcoded for development
-  const vncPath = '/opt/homebrew/bin/vncviewer';
+  const vncPath = '/usr/bin/vncviewer';
 
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
@@ -169,7 +167,7 @@ async function connectRDP(
   username: string,
   password: string
 ) {
-  const rdpPath = '/opt/homebrew/bin/xfreerdp';
+  const rdpPath = '/usr/bin/xfreerdp';
   const { execFile } = require('child_process');
   console.log('Launching RDP Viewer');
   try {
