@@ -159,7 +159,6 @@ async function connectVNC(ipAddress: string, sshKey: string) {
     console.log('Closing SSH Tunnel');
     return false;
   }
-  return true;
 }
 
 async function connectRDP(ipAddress: string, username: string) {
@@ -207,7 +206,6 @@ async function connectRDP(ipAddress: string, username: string) {
     console.log('Closing SSH Tunnel');
     return false;
   }
-  return true;
 }
 
 async function loginWindowChange(
