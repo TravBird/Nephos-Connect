@@ -44,7 +44,6 @@ let newUserName = '';
 
 let ociConnectUser: OCIConnect;
 
-
 async function connectVNC(ipAddress: string, sshKey: string) {
   // Testing function to launch VNC software
   const pemKey2 = forge.pki.privateKeyFromPem(sshKey);
