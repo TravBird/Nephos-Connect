@@ -1,4 +1,5 @@
-Nephos-Connect is an Electron-Based application designed primarily to work alongside the NephOS Operating System. 
+Nephos-Connect is an Electron-Based application designed primarily to work alongside the NephOS Operating System within the Nephos SyaaS Eco-System.
+
 # What is Nephos?
 Nephos is a project to investigate the idea of **SyaaS**, System as a Service, a new form of Cloud Computing.
 SyaaS intends to bring Thin Clients and Virtual Desktops to a wider audience, away from just Organisations by allowing the seamless streaming of one or more Virtual Machines (Systems) to the user, as if they had a desktop in front of them. A user will interact with SyaaS via a thin client, in the case of Nephos- this is the Nephos Device and Nephos-Connect. 
