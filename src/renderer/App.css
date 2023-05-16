@@ -2,67 +2,110 @@
  * @NOTE: Prepend a `~` to css file paths that are in your node_modules
  *        See https://github.com/webpack-contrib/sass-loader#imports
  */
+
+#root{
+  height: 100%;
+  width: 100%;
+  overflow-y: scroll;
+  margin: 15%;
+  margin-bottom: 10rem;
+  font-size: 16px;
+}
+
+h1{
+  font-size: 3rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  -webkit-text-stroke: white 1px;
+}
+
 body {
   position: relative;
+  /*color: #064559; */
   color: white;
   height: 100vh;
-  background-image: linear-gradient(
+    background-image: linear-gradient(
     200.96deg,
     #064559,
     #3DCAF5,
     #8ed0e4
   );
+  /*
+  background-image: url('../../assets/Nephos-Background.png');
+  background-repeat: repeat;
+  background-size: 500px 500px;
+  */
   font-family: sans-serif;
   overflow-y: hidden;
   display: flex;
   justify-content: center;
   align-items: center;
+  font-size: 100%;
 }
 
-.topMenu {
-  position: absolute;
-  top: 0;
-  width: 100%;
-  height: 50px;
+#TopMenu {
   display: flex;
-  justify-content: center;
   align-items: center;
-  z-index: 2;
+  justify-content: space-between;
+  flex-direction: row;
+  margin-top: 1rem;
+  width: 100%;
 }
+
+#WirelessSettingsButton{
+  font-size: 1rem;
+}
+.Logo{
+  height: 10rem;
+  width: 10rem;
+}
+
 button {
   background-color: white;
-  border-radius: 5px;
+  border-radius: 0.3em;
   transition: all ease-in 0.1s;
   cursor: pointer;
   opacity: 0.9;
+  padding: 0.5rem;
 }
 
-#root{
+.home{
   height: 100%;
-  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
 }
 
 .LoginRegisterContainer{
-  height: 100%;
+  height: 20rem;
   width: 100%;
   text-align: center;
+}
+
+#internetStatus{
+  display: inline-block;
+  width: 50%;
+  flex-grow: 1;
 }
 
 .LoginRegister{
   display: flex;
   justify-content: center;
+  align-items: center;
+  flex-grow: 2;
 }
 .LoginButton{
   background-color: white;
-  border: 2px solid black;
-  border-radius: 5px;
-  padding: 10px;
-  margin: 10px;
-  font-size: 1.5rem;
+  border: 2px solid #000000;
+  margin: 5rem;
+  font-size: 2.5rem;
   font-weight: 600;
   cursor: pointer;
   transition: all ease-in 0.1s;
   opacity: 0.9;
+  height: 5rem;
+  width: 15rem;
 }
 
 .Form {
@@ -70,7 +113,7 @@ button {
   transition: height 10s linear;
 }
 #LoginTitle{
-  font-size: 2rem;
+  font-size: 5rem;
   font-weight: 600;
   margin-bottom: 1rem;
 }
@@ -99,7 +142,6 @@ a:hover {
 }
 
 #LogoutButton{
-  position: absolute;
   right: 0;
   margin-right: 10px;
 }
@@ -111,7 +153,8 @@ a:hover {
   padding: 10px;
   display: flex;
   justify-content: space-between;
-  flex-direction: column
+  flex-direction: column;
+  color: white;
 }
 
 .ConfigInfo > Button {
@@ -130,14 +173,105 @@ a:hover {
 
 .AdditionalInfo{
   width: 100%;
+  text-align: left;
+}
+
+.NetworkInfo{
+  border: solid 1px black;
+  padding: 5px;
+  color: black;
+}
+#WifiSettings{
+  color: black;
+}
+.SignalIcon{
+  height: 1.5rem;
+  width: 2rem;
+}
+#WifiSettings {
+  display: block; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 1; /* Sit on top */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgb(0,0,0); /* Fallback color */
+  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+  font-size: 1.5rem;
+}
+
+.CreateSystemFormContent, .WifiSettingsContent{
+  background-color: #8ed0e4;
+  margin: 15% auto; /* 15% from the top and centered */
+  padding: 20px;
+  border: 1px solid #064559;
+  width: 50%; /* Could be more or less, depending on screen size */
+}
+.ErrorPopupContent{
+  background-color: #064559;
+  margin: 15% auto; /* 15% from the top and centered */
+  padding: 1.5rem;
+  border: 1px solid #e94040;
+  width: 60%; /* Could be more or less, depending on screen size */
+  text-align: center;
+  color: #e94040;
+}
+
+.CloseErrorPopup{
+  color: #8ed0e4;
+  float: right;
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.CloseCreateSystemForm, .CloseWifiSettings {
+  color: #064559;
+  float: right;
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.CloseCreateSystemForm:hover,.CloseCreateSystemForm:focus,
+.CloseWifiSettings:hover, .CloseWifiSettings:focus,
+.CloseErrorPopup:hover, .CloseErrorPopup:focus {
+  color: #000;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+#CreateSystemForm {
+  position: fixed; /* Stay in place */
+  z-index: 1; /* Sit on top */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgb(0,0,0); /* Fallback color */
+  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+#ErrorPopup{
+  display: block; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 5; /* Sit on top */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgb(0,0,0); /* Fallback color */
+  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
 }
 
 .Loader {
   border: 16px solid #8ed0e4;
-  border-top: 16px solid #064559; /* Blue */
+  border-top: 16px solid #4a7f8f; /* Blue */
   border-radius: 50%;
-  width: 50px;
-  height: 50px;
+  width: 3rem;
+  height: 3rem;
   animation: spin 1.5s infinite ease-in-out;
   display: block;
   margin-left: auto;
@@ -152,3 +286,57 @@ a:hover {
   100% { border-top: 16px solid #064559;}
 }
 
+.LoadingScreenContent{
+  /* align text centre */
+  text-align: center;
+}
+
+.CloseCreateSystemForm{
+  /* make button transparent */
+  background-color: transparent;
+  border: none;
+  outline: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ButtonContainer{
+  display: flex;
+  justify-content: space-evenly;
+  margin-top: 1rem;
+}
+
+.ButtonContainer > button{
+  font-size: 1rem;
+}
+
+.DeleteButton{
+  /* position in bottom left corner */
+  color: red;
+  float: right;
+}
+
+#UserSystemSelection{
+  overflow-y: auto;
+  text-align: center;
+}
+
+.ButtonContainer > button{
+  width: 20%;
+}
+
+.RefreshIcon{
+  position: absolute;
+  margin-top: 2rem;
+  margin-right: 1.5rem;
+  right: 1.5rem;
+}
+
+.RefreshIcon > .Loader {
+  border: 16px solid #8ed0e4;
+  border-top: 16px solid #4a7f8f; /* Blue */
+  border-radius: 50%;
+  width: 0px;
+  height: 0px;
+  animation: spin 1.5s infinite ease-in-out;
+}

@@ -21,11 +21,11 @@ v0.5:
 
 v0.6:  
 
-    App can Launch VNC software and pass VM information 
+    User can create VMs/Systems and view their existing ones.
 
 v0.7:  
 
-    Saved VMs can be launched and viewed through the VNC software 
+    App can Launch VNC software and pass VM information 
 
 v0.8:  
 
