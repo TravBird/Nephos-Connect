@@ -170,6 +170,9 @@ async function connectRDP(
   const rdpPath = '/usr/bin/xfreerdp';
   const { execFile } = require('child_process');
   console.log('Launching RDP Viewer');
+  console.log(
+    `Connecting with username: ${username} and password: ${password}`
+  );
   try {
     const rdpViewer = await execFile(rdpPath, [
       `/u:${username}`,
@@ -603,10 +606,9 @@ ipcMain.handle(
                       'All done! Connecting to your System'
                     );
                     const closed = await connectVNC(systemIP, privateKey);
-                    if (closed === false) {
-                      console.log('VNC Closed, stopping system');
-                      await ociConnectUser.stopInstance(system.id);
-                    }
+                    console.log(closed);
+                    console.log('VNC Closed, stopping system');
+                    await ociConnectUser.stopInstance(system.id);
                     return {
                       success: 'true',
                       message: 'Successfully closed connection',
