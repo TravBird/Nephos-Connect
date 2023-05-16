@@ -1,56 +1,15 @@
-Nephos Connect Plans 
-v0.1:  
+Nephos-Connect is an Electron-Based application designed primarily to work alongside the NephOS Operating System. 
+# What is Nephos?
+Nephos is a project to investigate the idea of **SyaaS**, System as a Service, a new form of Cloud Computing.
+SyaaS intends to bring Thin Clients and Virtual Desktops to a wider audience, away from just Organisations by allowing the seamless streaming of one or more Virtual Machines (Systems) to the user, as if they had a desktop in front of them. A user will interact with SyaaS via a thin client, in the case of Nephos- this is the Nephos Device and Nephos-Connect. 
 
-    Launches and can be distributed  
+Note: due to the early development of this project- which is academic in form- NephOS is only availible to a small group of users. 
 
-v0.2:  
-
-    Application can be easily changed- some UI is operational. Some backend is operational 
-
-v0.3:  
-
-    Capable of contacting Oracle Servers. Make basic request perhaps 
-
-v0.4:  
-
-    Early login Permitted 
-
-v0.5:  
-
-    User can login and launch a specific VM and find out information about it 
-
-v0.6:  
-
-    User can create VMs/Systems and view their existing ones.
-
-v0.7:  
-
-    App can Launch VNC software and pass VM information 
-
-v0.8:  
-
-    Advanced Options such as VM choices and editing is permitted 
-
-v0.9:  
-
-    UI updates to permit happy and epic user experience 
-
-v1.0:  
-
-    User can login via Nephos Connect to cloud account 
-
-    Virtual Machines can be viewed, chosen and launched 
-
-    Virtual Machine information is automatically passed onto the VNC software which is then launched.  
-
-    UI is easy to use and intuitive. 
-
-v1.0 onwards:  
-
-    Polish for Nephos connect 
-
-    Smooth animations and nice looking graphics and stuff 
-
-    Integration with encoding servers and so on 
-
- 
+Nephos-Connect has several Key Features
+* Authentication with Nephos using 3 Legged OAuth with Oracle IDCS 
+* Register for a Nephos account from within the application
+* Connect to Wireless Networks nearby (a feature intended to be used primarily with NephOS)
+* Creation of User Systems (Cloud-Based Virtual Machines in OCI)
+* Viewing of User Systems
+* Connection to User Systems by passing information to local RDP or VNC installation
+* Deletion of User Systems
