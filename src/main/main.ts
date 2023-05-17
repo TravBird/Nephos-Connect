@@ -599,7 +599,7 @@ ipcMain.handle(
                       'All done! Connecting to your System'
                     );
                     const closed = await connectVNC(systemIP, privateKey);
-                    console.log(closed);
+                    console.log('Returned from VNC');
                     console.log('VNC Closed, stopping system');
                     await ociConnectUser.stopInstance(system.id);
                     return {

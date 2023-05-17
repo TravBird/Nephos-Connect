@@ -158,6 +158,7 @@ async function createSystemRequest(
     displayName,
     operatingSystem
   );
+  console.log('Finished create system request, closing loading screen');
   setLoading('');
 }
 
@@ -370,6 +371,7 @@ async function startSystemRequest(
     displayName,
     operatingSystem
   );
+  console.log('Finished create system request, closing loading screen');
   setLoading('');
 }
 
@@ -403,6 +405,7 @@ async function reconnectSystemRequest(
     displayName,
     operatingSystem
   );
+  console.log('Finished create system request, closing loading screen');
   setLoading('');
 }
 
