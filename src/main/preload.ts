@@ -10,7 +10,7 @@ const electronHandler = {
       const result = await ipcRenderer.invoke(channel, request);
       return result;
     },
-    async post_setup_login(channel: 'post-setup-login', request: any) {
+    async post_setup_login(channel: 'post-setup-login') {
       const result = await ipcRenderer.invoke(channel);
       return result;
     },

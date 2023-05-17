@@ -80,7 +80,10 @@ export default class IdcsAuth {
 
   async userInfoRequest() {
     // Making request to IDCS to get user API keys
-    console.log("Making request to get user's API keys with access token: ", this.Access_Token);
+    console.log(
+      "Making request to get user's API keys with access token: ",
+      this.Access_Token
+    );
     return fetch(
       `https://idcs-${this.ClientTenant}.identity.oraclecloud.com/oauth2/v1/userinfo`,
       {
@@ -91,7 +94,7 @@ export default class IdcsAuth {
         },
       }
     )
-    .then((res) => res.json())
+      .then((res) => res.json())
       .then((body) => {
         return body;
       });

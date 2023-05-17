@@ -1,11 +1,7 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable react/prop-types */
 /* eslint-disable react/jsx-filename-extension */
-import {
-  Navigate,
-  MemoryRouter as Router,
-  useNavigate,
-} from 'react-router-dom';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { SetStateAction, useEffect, useState } from 'react';
 import './App.css';
 
