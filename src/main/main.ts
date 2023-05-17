@@ -159,26 +159,21 @@ async function connectVNC(ipAddress: string, sshKey: string) {
     console.log('Closing SSH Tunnel');
     return false;
   }
-  return true;
+  return false;
 }
 
-async function connectRDP(
-  ipAddress: string,
-  username: string,
-  password: string
-) {
+async function connectRDP(ipAddress: string, username: string) {
   const rdpPath = '/usr/bin/xfreerdp';
   const { execFile } = require('child_process');
   console.log('Launching RDP Viewer');
-  console.log(
-    `Connecting to ${ipAddress} with username: ${username} and password: ${password}`
-  );
+  console.log(`Connecting to ${ipAddress} with username: ${username}}`);
   try {
     const rdpViewer = await execFile(rdpPath, [
       `/u:${username}`,
       `/v:${ipAddress}`,
       '/sound:sys:alsa',
       '/microphone:sys:alsa',
+      '/f',
       // '/usb:id,dev:1a86:7523',
     ]);
     rdpViewer.stdout.on('data', (data) => {
@@ -213,7 +208,6 @@ async function connectRDP(
     console.log('Closing SSH Tunnel');
     return false;
   }
-  return true;
 }
 
 async function loginWindowChange(
@@ -605,7 +599,7 @@ ipcMain.handle(
                       'All done! Connecting to your System'
                     );
                     const closed = await connectVNC(systemIP, privateKey);
-                    console.log(closed);
+                    console.log('Returned from VNC');
                     console.log('VNC Closed, stopping system');
                     await ociConnectUser.stopInstance(system.id);
                     return {
@@ -629,12 +623,8 @@ ipcMain.handle(
               } else {
                 try {
                   // get windows initial credentials
-                  const [usernmae, password] =
-                    await ociConnectUser.getInitialWindowsCredentials(
-                      system.id
-                    );
-                  // wait for 5 seconds before connecting for SSH to be up
-                  const closed = await connectRDP(systemIP, usernmae, password);
+                  const username = 'opc';
+                  const closed = await connectRDP(systemIP, username);
                   if (closed === false) {
                     console.log('RDP Closed, stopping system');
                     await ociConnectUser.stopInstance(system.id);
@@ -753,10 +743,9 @@ ipcMain.handle(
             }
           } else {
             try {
-              const [usernmae, password] =
-                await ociConnectUser.getInitialWindowsCredentials(system.id);
+              const [username] = 'opc';
               // wait for 5 seconds before connecting for SSH to be up
-              const closed = await connectRDP(systemIP, usernmae, password);
+              const closed = await connectRDP(systemIP, username);
               if (closed === false) {
                 console.log('RDP Closed, stopping system');
                 await ociConnectUser.stopInstance(systemId);
@@ -841,10 +830,9 @@ ipcMain.handle(
       } else {
         try {
           // get windows initial credentials
-          const [usernmae, password] =
-            await ociConnectUser.getInitialWindowsCredentials(systemId);
+          const [username] = 'opc';
           // wait for 5 seconds before connecting for SSH to be up
-          const closed = await connectRDP(systemIP, usernmae, password);
+          const closed = await connectRDP(systemIP, username);
           if (closed === false) {
             console.log('RDP Closed, stopping system');
             await ociConnectUser.stopInstance(systemId);

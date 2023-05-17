@@ -158,16 +158,8 @@ async function createSystemRequest(
     displayName,
     operatingSystem
   );
-  console.log(system);
-
-  if (system.success === 'true') {
-    // system up, connecting
-    console.log(system.message);
-  } else {
-    console.log(system.error);
-    setLoading('');
-    setError(system.error);
-  }
+  console.log('Finished create system request, closing loading screen');
+  setLoading('');
 }
 
 function CreateSystemButton({
@@ -379,14 +371,8 @@ async function startSystemRequest(
     displayName,
     operatingSystem
   );
-  if (system.success === 'true') {
-    // system up, connecting
-    console.log(system.message);
-  } else {
-    console.log(system.error);
-    setLoading('');
-    setError(system.error);
-  }
+  console.log('Finished create system request, closing loading screen');
+  setLoading('');
 }
 
 async function reconnectSystemRequest(
@@ -419,14 +405,8 @@ async function reconnectSystemRequest(
     displayName,
     operatingSystem
   );
-  if (system.success === 'success') {
-    // system up, connecting
-    console.log(system.message);
-  } else {
-    console.log(system.error);
-    setLoading('');
-    setError(system.error);
-  }
+  console.log('Finished create system request, closing loading screen');
+  setLoading('');
 }
 
 async function deleteSystemRequest(
