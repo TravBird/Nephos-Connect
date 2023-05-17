@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /* eslint-disable react/jsx-filename-extension */
 import { MemoryRouter as Router, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
